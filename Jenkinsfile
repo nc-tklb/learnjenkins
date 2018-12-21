@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('build') {
             steps {
-                echo "yow"
+                sh 'echo "yow"''
             }
         }
         stage('donkey') {
@@ -12,5 +12,22 @@ pipeline {
         		echo "donkeytime!"
         	}
         }
+    }
+    post {
+    	always{
+    		echo "so guys we did it"
+    	}
+    	success{
+    		echo "we reached a quarter of a million subscribers"
+    	}
+    	failure{
+    		echo "two hundred and fifty thousand and still growing"
+    	}
+    	unstable{
+    		echo "the fact that we've reached this number in such a short amount of time is just phenomenal"
+    	}
+    	changed{
+    		echo "I'm, I'm just amazed"
+    	}
     }
 }

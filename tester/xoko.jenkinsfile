@@ -15,7 +15,7 @@ pipeline {
     }
     post {
     	always{
-    		echo "so guys we did it"
+    		echo "so guys we didn't do it"
     	}
     	success{
     		echo "we reached a quarter of a million subscribers"

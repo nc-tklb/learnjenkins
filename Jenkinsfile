@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('build') {
             steps {
-                sh 'echo "yow"
+                echo "yow"
             }
         }
         stage('donkey') {

@@ -1,5 +1,8 @@
 task('hello') {
     doLast {
-        println "DONKEYTIME!"
+        println "HELLO!"
     }
+}
+void createLdapUser(String context){
+    prinln "given string was ${context}"
 }

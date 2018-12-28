@@ -3,6 +3,9 @@ task('hello') {
         println "HELLO!"
     }
 }
-void createLdapUser(String context){
-    prinln "given string was ${context}"
+task('createLdapUser', description: 'Test function for create ldap user in actual system')
+    String _username = requiredParameter("user")
+    doLast {
+        println _username
+    }
 }

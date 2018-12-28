@@ -1,0 +1,29 @@
+pipeline {
+    agent any
+    tools { 
+        gradle 'gradle-latest'
+    }
+    environment {
+        gradle_path = "C:/Users/taub/.jenkins/workspace/pip/gradle"
+    }
+    stages {
+        stage ('Initialize') {
+            steps {
+                echo "initialise phase"
+            }
+        }
+        stage('Checkout') {
+            steps{
+                git 'https://github.com/nc-tklb/learnjenkins'
+            }
+        }
+        stage ('Do things') {
+            steps {
+                dir(gradle_path) {
+                    
+                    sh 'gradle hello'
+                }
+            }
+        }
+    } 
+}

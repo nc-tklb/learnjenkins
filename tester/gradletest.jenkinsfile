@@ -4,12 +4,13 @@ pipeline {
         gradle 'gradle-latest'
     }
     environment {
-        gradle_path = "gradle/"
+        gradle_path = "C:/Users/taub/.jenkins/workspace/pip/gradle"
     }
     stages {
         stage ('Initialize') {
             steps {
-                echo "initialise phase"
+                echo "Working Directory:"
+                sh 'pwd'
             }
         }
         stage('Checkout') {
@@ -17,11 +18,18 @@ pipeline {
                 git 'https://github.com/nc-tklb/learnjenkins'
             }
         }
-        stage ('Do things') {
+        stage ('try gradle hello') {
             steps {
                 dir(gradle_path) {
                     
                     sh 'gradle hello'
+                }
+            }
+        }
+        stage ('try gradle createuser') {
+            steps {
+                dir(gradle_path) {
+                    sh 'gradle -Pusername=Johnny createLdapUser'
                 }
             }
         }

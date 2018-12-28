@@ -6,7 +6,7 @@ task('hello') {
 }
 task('createLdapUser', description: 'Test function for create ldap user in actual system'){
     String _username = "UNCHANGED"
-    if(project.hasProperty('username'){
+    if(project.hasProperty('username')){
         _username=project.property('username')
     }
     doLast {

@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    parameters{
+        string(name: 'PERSON', defaultValue: 'Mr Wiggles', description: "testing some tutorial text")
+    }
     tools { 
         gradle 'gradle-latest'
     }
@@ -31,6 +34,11 @@ pipeline {
                 dir(gradle_path) {
                     sh 'gradle -Pusername=Johnny createLdapUser'
                 }
+            }
+        }
+        stage ('parameter test'){
+            steps{
+                echo "${params.PERSON}"
             }
         }
     } 

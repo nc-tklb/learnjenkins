@@ -8,9 +8,9 @@ pipeline {
     }
     environment {
         gradle_path = "gradle/"
-        dtk="${data.params.daystokeep}"
-        ntk="${data.params.numtokeep}"
-        context="${data.params.context}"
+        dtk="100"
+        ntk="100"
+        context="test"
     }
     stages {
         stage ('Initialize') {
@@ -35,19 +35,19 @@ pipeline {
         stage ('try gradle createuser') {
             steps {
                 dir(gradle_path) {
-                    sh "gradle -Pusername=\$context createLdapUser"
+                    sh "gradle -Pusername=$context createLdapUser"
                 }
             }
         }
         stage ('parameter test'){
             steps{
-                echo "\${params.PERSON}"
+                echo "${params.PERSON}"
             }
         }
         stage ('stuff to keep'){
             steps{
-                echo "\$dtk"
-                echo "\$ntk"
+                echo "$dtk"
+                echo "$ntk"
             }
         }
     }

@@ -3,12 +3,8 @@ jenkins-job-configuration-default:
   jobs:
     - job-bundle-name: "test jobs"
       common-template-params:
-        gitUrl: "https://github.com/nc-tklb/learnjenkins.git"
-        gitCheckoutPath: "/gradle-projekter"
-        gitBranch: "*/master"
-        switches: ""
         daystokeep: "100"
-        numtokeep: "50"
+        numtokeep: "100"
       jenkins-jobs:
         - name: "test-jenkins-yml-job"
           description: "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"

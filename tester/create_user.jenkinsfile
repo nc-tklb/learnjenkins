@@ -8,8 +8,9 @@ if(true)
     daysToKeep = "100"
 if(true)
     numToKeep = "100"
-//creates the choice string for password policy
-
+ppolicydescription="Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder."
+if("null"=="EN")
+    ppolicydescription="Should a password be generated automatically? Alternatively, a password must be entered below."
 
 pipeline {
     agent any
@@ -28,7 +29,7 @@ pipeline {
         string(name: "Efternavn", description: "")
         string(name: "Email", description: "")
 
-        choice(name: "Password Policy", choices: choiceString("[user, system]"), description: "")
+        choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
     }
     tools {
         gradle 'gradle-latest'
@@ -48,15 +49,15 @@ pipeline {
         }
         stage ('print test values') {
             steps {
-                echo "days from this script: ${daysToKeep}"
+                echo "days from this script: " + daysToKeep
                 echo "days from YML: 100"
-                echo "num from this script: ${numToKeep}"
+                echo "num from this script: " + numToKeep
                 echo "num from YML: 100"
             }
         }
         stage('environment variables'){
             steps{
-                echo "${swag}"
+                echo swag
             }
         }
     }

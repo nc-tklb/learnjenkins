@@ -1,33 +1,13 @@
 //Pipeline template for user creation
 
-//
-def daysToKeep="-1"
-def numToKeep="-1"
-if(true) {
+daysToKeep="-1"
+numToKeep="-1"
+if(true)
     daysToKeep = "100"
-}
-if(true) {
+if(true)
     numToKeep = "100"
-}
-//splits a list from the yml into a string that is readable by the jenkins pipeline choice parameter.
-String makeChoiceString(String input){
-    def inputlist = ((input).replaceAll(/[\[\]]+/, "")).split(', ')
-    def output = ''
-    inputlist.each{
-        output += it + '\n'
-    }
-    return output
-}
-/*script{
-    usergrouplist=("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]".replaceAll(/[\[\]]+/, "")).split(', ')
-    usergroups=''
-    usergrouplist.each{
-        usergroups += it + '\n'
-    }
-}*/
-script{
-    usergroups=makeChoiceString("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")
-}
+usergroups=makeChoiceString("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")
+
 
 pipeline {
     agent any
@@ -77,4 +57,14 @@ pipeline {
             }
         }
     }
+}
+
+//splits a list from the yml into a string that is readable by the jenkins pipeline choice parameter.
+String makeChoiceString(String input){
+    def inputlist = ((input).replaceAll(/[\[\]]+/, "")).split(', ')
+    def output = ''
+    inputlist.each{
+        output += it + '\n'
+    }
+    return output
 }

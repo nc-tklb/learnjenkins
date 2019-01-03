@@ -19,6 +19,7 @@ script{
     for (String s : usergroups){
         println s
     }
+    println usergroupsstring
 }
 
 pipeline {

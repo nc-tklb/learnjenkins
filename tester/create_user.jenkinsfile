@@ -14,7 +14,7 @@ script{
     usergroups=usergroupsstring.split(', ')
     usergroupsstring=''
     usergroups.each{
-        usergroupsstring += it + '\\n'
+        usergroupsstring += it + '\n'
     }
     for (String s : usergroups){
         println s

@@ -24,7 +24,7 @@ pipeline {
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        choice(name: "Brugerroller", choices: "[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")
+        choice(name: "Brugerroller", choices: [g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user])
     }
     tools {
         gradle 'gradle-latest'

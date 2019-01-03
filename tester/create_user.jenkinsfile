@@ -6,19 +6,18 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
-def usergroups = []
+def usergrouplist = []
 script{
-    usergroupsstring="[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"
-    usergroupsstring=usergroupsstring.replaceAll(/[\[\]]+/, "")
-    usergroups=usergroupsstring.split(', ')
-    usergroupsstring=''
-    usergroups.each{
-        usergroupsstring += it + '\n'
+
+    usergrouplist=("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]".replaceAll(/[\[\]]+/, "")).split(', ')
+    usergroups=''
+    usergrouplist.each{
+        usergroups += it + '\n'
     }
-    for (String s : usergroups){
+    for (String s : usergrouplist){
         println s
     }
-    println usergroupsstring
+    println usergroups
 }
 
 pipeline {
@@ -37,7 +36,7 @@ pipeline {
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        choice(name: "Brugerroller", choices: usergroupsstring)
+        choice(name: "Brugerroller", choices: usergroups)
     }
     tools {
         gradle 'gradle-latest'

@@ -6,7 +6,9 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
-currentBuild.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
+item = Jenkins.instance.getItemByFullName("original Job Name")
+item.setDescription("Changes Description")
+item.save()
 pipeline {
     agent any
     options{

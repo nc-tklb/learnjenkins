@@ -12,6 +12,10 @@ script{
     usergroupsstring=usergroupsstring.replaceAll(/\[/, "")
     usergroupsstring=usergroupsstring.replaceAll(/\]/, "")
     usergroups=usergroupsstring.split(', ')
+    usergroupsstring=''
+    usergroups.each{
+        usergroupsstring += it + '\\n'
+    }
     for (String s : usergroups){
         println s
     }

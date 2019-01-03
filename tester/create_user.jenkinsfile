@@ -12,8 +12,9 @@ script{
     usergroupsstring=usergroupsstring.replaceAll(/\[/, "")
     usergroupsstring=usergroupsstring.replaceAll(/\]/, "")
     usergroups=usergroupsstring.split(', ')
-    println usergroups[0]
-    println usergroups[1]
+    for (String s : usergroups){
+        println s
+    }
 }
 
 pipeline {

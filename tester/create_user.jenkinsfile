@@ -32,11 +32,16 @@ pipeline {
                 sh 'pwd'
             }
         }
-        stage ('print test values'){
-            steps{
-                echo "from this script: ${daysToKeep}"
-                echo "from YML: 100"
+        stage ('print test values') {
+            steps {
+                echo "days from this script: ${daysToKeep}"
+                echo "days from YML: 100"
+                echo "num from this script: ${numToKeep}"
+                echo "num from YML: 100"
             }
+        }
+        stage('environment variables'){
+            echo "${swag}"
         }
     }
 }

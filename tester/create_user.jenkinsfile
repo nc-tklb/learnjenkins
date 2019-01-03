@@ -1,15 +1,15 @@
 def daysToKeep="-1"
 def numToKeep="-1"
+if(true) {
+    daysToKeep = "100"
+}
+if(true) {
+    numToKeep = "100"
+}
 currentBuild.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
 pipeline {
     agent any
     options{
-        if(true) {
-            daysToKeep = "100"
-        }
-        if(true) {
-            numToKeep = "100"
-        }
         buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))
     }
 
@@ -21,6 +21,7 @@ pipeline {
         gradle 'gradle-latest'
     }
     environment {
+        swag="swug"
     }
     stages {
         stage ('Initialize') {

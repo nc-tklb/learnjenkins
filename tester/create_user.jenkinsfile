@@ -20,9 +20,10 @@ if("null" == "EN") {
 }
 
 
-for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"))
-    parameters{booleanParam(name: s, defaultValue: false, description: "")}
+
 pipeline {
+    for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"))
+        parameters{booleanParam(name: s, defaultValue: false, description: "")}
     agent any
     options{
         buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))

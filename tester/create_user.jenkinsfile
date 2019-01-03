@@ -30,16 +30,10 @@ pipeline {
                 sh 'pwd'
             }
         }
-        stage ('try gradle hello') {
-            steps {
-                dir(gradle_path) {
-                    sh 'gradle hello'
-                }
-            }
-        }
         stage ('print test values'){
             steps{
-                echo "${daysToKeep}"
+                echo "from this script: ${daysToKeep}"
+                echo "from YML: 100"
             }
         }
     }

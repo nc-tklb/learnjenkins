@@ -6,6 +6,14 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
+def usergroupchoices = ''
+script{
+    data.params.groups.each{
+        usergroupchoices += it + '
+'
+    }
+}
+
 pipeline {
     agent any
     options{
@@ -13,23 +21,16 @@ pipeline {
     }
 
     parameters {
-        if(null != null){
+        /*if(null != null){
             for (Map passwordparam : data.params.passwordparams){
                 password(name: "${passwordparam.name}",description: "passwordparam.description")
             }
-        }
+        }*/
         string(name: "Brugernavn")
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        def usergroupchoices = ''
-        script{
-            data.params.groups.each{
-                usergroupchoices += it + ','
-            }
-        }
         choice(name: "Brugerroller", choices: "${usergroupchoices}")
-
     }
     tools {
         gradle 'gradle-latest'

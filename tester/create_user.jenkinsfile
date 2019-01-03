@@ -6,12 +6,11 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
-def usergroups = "[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"
 def usergroupchoices = []
 script{
-    for (String group : [g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]){
-        usergroupchoices.add("${group}")
-    }
+    def usergroups = "[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]".split(',')
+    println usergroups[0]
+    println usergroups[1]
 }
 
 pipeline {
@@ -30,7 +29,7 @@ pipeline {
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        choice(name: "Brugerroller", choices: usergroupchoices)
+        choice(name: "Brugerroller", choices: usergroups)
     }
     tools {
         gradle 'gradle-latest'

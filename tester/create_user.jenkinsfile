@@ -13,7 +13,7 @@ pipeline {
     }
 
     parameters {
-        if(data.params.passwordparams != null){
+        if(null != null){
             for (Map passwordparam : data.params.passwordparams){
                 password(name: "${passwordparam.name}",description: "passwordparam.description")
             }

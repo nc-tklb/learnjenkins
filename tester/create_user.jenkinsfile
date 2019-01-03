@@ -6,9 +6,6 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
-item = Jenkins.instance.getItemByFullName("original Job Name")
-item.setDescription("Changes Description")
-item.save()
 pipeline {
     agent any
     options{
@@ -28,6 +25,9 @@ pipeline {
     stages {
         stage ('Initialize') {
             steps {
+                script{
+                    currentBuild.rawBuild.project.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
+                }
                 echo "Working Directory:"
                 sh 'pwd'
             }

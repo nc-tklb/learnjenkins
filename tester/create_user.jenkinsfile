@@ -13,6 +13,7 @@ script{
     usergroups=usergroupsstring.split(', ')
     usergroupsstring=''
     usergroups.each{
+        if(it==usergroups.last()) return
         usergroupsstring += it + '\n'
     }
     for (String s : usergroups){

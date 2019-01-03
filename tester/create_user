@@ -1,0 +1,45 @@
+pipeline {
+    currentBuild.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
+    agent any
+    options{
+        daysToKeep="-1"
+        numToKeep="-1"
+        if(true) {
+            daysToKeep = "100"
+        }
+        if(true) {
+            numToKeep = "100"
+        }
+        buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))
+    }
+
+    parameters {
+        password(name: 'PASSWORD')
+        string(name: 'PERSON', defaultValue: 'Mr Wiggles', description: "testing some tutorial text")
+    }
+    tools {
+        gradle 'gradle-latest'
+    }
+    environment {
+    }
+    stages {
+        stage ('Initialize') {
+            steps {
+                echo "Working Directory:"
+                sh 'pwd'
+            }
+        }
+        stage ('try gradle hello') {
+            steps {
+                dir(gradle_path) {
+                    sh 'gradle hello'
+                }
+            }
+        }
+        stage ('print test values'){
+            steps{
+                echo "${daysToKeep}"
+            }
+        }
+    }
+}

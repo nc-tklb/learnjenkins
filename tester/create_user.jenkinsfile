@@ -37,7 +37,7 @@ pipeline {
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        choice(name: "Brugerroller", choices: usergroups)
+        choice(name: "Brugerroller", choices: usergroupsstring)
     }
     tools {
         gradle 'gradle-latest'

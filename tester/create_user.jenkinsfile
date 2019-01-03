@@ -1,9 +1,9 @@
+def daysToKeep="-1"
+def numToKeep="-1"
+currentBuild.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
 pipeline {
-    currentBuild.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
     agent any
     options{
-        daysToKeep="-1"
-        numToKeep="-1"
         if(true) {
             daysToKeep = "100"
         }

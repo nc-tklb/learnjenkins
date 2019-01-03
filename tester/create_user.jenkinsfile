@@ -13,7 +13,6 @@ script{
     usergroups=usergroupsstring.split(', ')
     usergroupsstring=''
     usergroups.each{
-        if(it==usergroups.last()) return
         usergroupsstring += it + '\n'
     }
     for (String s : usergroups){
@@ -38,7 +37,7 @@ pipeline {
         string(name: "Fornavn")
         string(name: "Efternavn")
         string(name: "Email")
-        choice(name: "Brugerroller", choices: usergroupsstring)
+        choice(name: "Brugerroller", choices: usergroups)
     }
     tools {
         gradle 'gradle-latest'

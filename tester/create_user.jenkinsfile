@@ -9,8 +9,7 @@ if(true) {
 def usergroupchoices = ''
 script{
     data.params.groups.each{
-        usergroupchoices += it + '
-'
+        usergroupchoices += it + '\n'
     }
 }
 

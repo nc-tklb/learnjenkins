@@ -13,8 +13,23 @@ pipeline {
     }
 
     parameters {
-        password(name: 'PASSWORD')
-        string(name: 'PERSON', defaultValue: 'Mr Wiggles', description: "testing some tutorial text")
+        if(data.params.passwordparams != null){
+            for (Map passwordparam : data.params.passwordparams){
+                password(name: "${passwordparam.name}",description: "passwordparam.description")
+            }
+        }
+        string(name: "Brugernavn")
+        string(name: "Fornavn")
+        string(name: "Efternavn")
+        string(name: "Email")
+        def usergroupchoices = ''
+        script{
+            data.params.groups.each{
+                usergroupchoices += it + ','
+            }
+        }
+        choice(name: "Brugerroller", choices: "${usergroupchoices}")
+
     }
     tools {
         gradle 'gradle-latest'
@@ -26,7 +41,7 @@ pipeline {
         stage ('Initialize') {
             steps {
                 script{
-                    currentBuild.rawBuild.project.description = "Skal kunne lave en pipeline ud fra denne yml og parametrene herunder"
+                    currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
                 }
                 echo "Working Directory:"
                 sh 'pwd'

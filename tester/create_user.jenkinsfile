@@ -8,9 +8,17 @@ if(true)
     daysToKeep = "100"
 if(true)
     numToKeep = "100"
-ppolicydescription="Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder."
-if("null"=="EN")
-    ppolicydescription="Should a password be generated automatically? Alternatively, a password must be entered below."
+
+//Description language
+ppolicydescription = "Vælg hvilken password policy brugeren skal have (\"user\" anvendes til almindelige brugere og \"system\" anvendes til systembrugere, hvor password ikke har udløb)."
+generatePasswordDescription = "Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder."
+sendEmailDescription = "Skal der udsendes en e-mail med password?"
+if("null" == "EN") {
+    ppolicydescription = "Choose which password policy the user should have (\"user\" is used for common users and \"system\" is used for system users whose password has not expired)."
+    generatePasswordDescription = "Should a password be generated automatically? Alternatively, a password must be entered below."
+    sendEmailDescription = "Should an email be sent with a password?"
+}
+
 
 pipeline {
     agent any
@@ -28,14 +36,13 @@ pipeline {
         string(name: "Fornavn", description: "")
         string(name: "Efternavn", description: "")
         string(name: "Email", description: "")
+        for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"))
+            booleanParam(name: s, defaultValue: false, description: "")
 
         choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
-    }
-    tools {
-        gradle 'gradle-latest'
-    }
-    environment {
-        swag="swug"
+        booleanParam(name: "Generate Password", defaultValue: true, description: generatePasswordDescription)
+        password(name: "Password", description: "")
+        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)
     }
     stages {
         stage ('Initialize') {
@@ -53,11 +60,6 @@ pipeline {
                 echo "days from YML: 100"
                 echo "num from this script: " + numToKeep
                 echo "num from YML: 100"
-            }
-        }
-        stage('environment variables'){
-            steps{
-                echo swag
             }
         }
     }

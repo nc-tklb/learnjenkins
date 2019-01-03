@@ -6,11 +6,12 @@ if(true) {
 if(true) {
     numToKeep = "100"
 }
+def usergroups = "[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]".split(',')
 def usergroupchoices = []
 script{
-    def usergroups = "[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]".split(',')
     println usergroups[0]
     println usergroups[1]
+
 }
 
 pipeline {

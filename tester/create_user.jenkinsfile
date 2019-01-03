@@ -9,12 +9,11 @@ if(true) {
 def usergroups = []
 script{
     usergroupsstring="[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"
-    usergroupsstring=usergroupsstring.replace("[", "")
-    usergroupsstring=usergroupsstring.replace("]", "")
+    usergroupsstring=usergroupsstring.replaceAll("[", "")
+    usergroupsstring=usergroupsstring.replaceAll("]", "")
     usergroups=usergroupsstring.split(',')
     println usergroups[0]
     println usergroups[1]
-
 }
 
 pipeline {

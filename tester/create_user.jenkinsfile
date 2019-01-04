@@ -19,31 +19,37 @@ if("null" == "EN") {
     sendEmailDescription = "Should an email be sent with a password?"
 }
 //Brugerroller string
-def abemad='''return [
+def brugerrollerS='''return [
             
-            \'g_dev_appserver_ssh\',
+            'g_dev_appserver_ssh',
             
-            \'g_dev_appserver_sudo\',
+            'g_dev_appserver_sudo',
             
-            \'g_dev_dbserver_ssh\',
+            'g_dev_dbserver_ssh',
             
-            \'g_dev_dbserver_sudo\',
+            'g_dev_dbserver_sudo',
             
-            \'g_dev_adserver_ssh\',
+            'g_dev_adserver_ssh',
             
-            \'g_dev_adserver_sudo\',
+            'g_dev_adserver_sudo',
             
-            \'nc_drift_admin\',
+            'nc_drift_admin',
             
-            \'nc_drift_user\',
+            'nc_drift_user',
             
             ]'''
+def brugerroller='return [\n\n'
+for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
+    brugerroller += '\'' + s + '\'\n\n'
+}
+brugerroller += ']'
+println brugerroller
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
         string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
         string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
         string(defaultValue: '', description: '', name: 'Efternavn', trim: false),
         string(defaultValue: '', description: '', name: 'Email', trim: false),
-        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: abemad]]],
+        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: brugerroller]]],
         choice(choices: choiceString("[user, system]"), description: ppolicydescription, name: 'PasswordPolicy'),
         booleanParam(defaultValue: true, description: generatePasswordDescription, name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
         booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')
@@ -80,8 +86,6 @@ pipeline {
             steps {
                 script{
                     currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
-                    for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]"))
-                        parameters: [booleanParam(name: s, defaultValue: false, description: "")]
                 }
                 echo "Working Directory:"
                 sh 'pwd'

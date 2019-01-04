@@ -19,7 +19,25 @@ if("null" == "EN") {
     sendEmailDescription = "Should an email be sent with a password?"
 }
 //Brugerroller string
-def brugerrollerS='''return [\'g_dev_appserver_ssh\',\'g_dev_appserver_sudo\',\'g_dev_dbserver_ssh\',\'g_dev_dbserver_sudo\',\'g_dev_adserver_ssh\',\'g_dev_adserver_sudo\',\'nc_drift_admin\',\'nc_drift_user\']'''
+def brugerrollerS='''return [
+            
+            \'g_dev_appserver_ssh\',
+            
+            \'g_dev_appserver_sudo\',
+            
+            \'g_dev_dbserver_ssh\',
+            
+            \'g_dev_dbserver_sudo\',
+            
+            \'g_dev_adserver_ssh\',
+            
+            \'g_dev_adserver_sudo\',
+            
+            \'nc_drift_admin\',
+            
+            \'nc_drift_user\',
+            
+            ]'''
 def brugerroller='''return [
 
             '''
@@ -33,15 +51,16 @@ for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbser
     brugerroller += '\t\t\'' + s + '\',\n\n'
 }
 brugerroller += '\t\t]'*/
+x = brugerroller
 brugerroller += ''']'''
 println "built string:\n" + brugerroller
 println "actual string:\n" + brugerrollerS
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
-        string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
+        string(defaultValue: '', description: brugerroller, name: 'Brugernavn', trim: false),
         string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
         string(defaultValue: '', description: '', name: 'Efternavn', trim: false),
         string(defaultValue: '', description: '', name: 'Email', trim: false),
-        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: brugerrollerS]]],
+        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: x]]],
         choice(choices: choiceString("[user, system]"), description: ppolicydescription, name: 'PasswordPolicy'),
         booleanParam(defaultValue: true, description: generatePasswordDescription, name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
         booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')

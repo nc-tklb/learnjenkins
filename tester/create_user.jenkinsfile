@@ -21,46 +21,45 @@ if("null" == "EN") {
 //Brugerroller string
 def brugerrollerS='''return [
             
-            \'g_dev_appserver_ssh\',
+\'g_dev_appserver_ssh\',
             
-            \'g_dev_appserver_sudo\',
+\'g_dev_appserver_sudo\',
             
-            \'g_dev_dbserver_ssh\',
+\'g_dev_dbserver_ssh\',
             
-            \'g_dev_dbserver_sudo\',
+\'g_dev_dbserver_sudo\',
             
-            \'g_dev_adserver_ssh\',
+\'g_dev_adserver_ssh\',
             
-            \'g_dev_adserver_sudo\',
+\'g_dev_adserver_sudo\',
             
-            \'nc_drift_admin\',
+\'nc_drift_admin\',
             
-            \'nc_drift_user\',
+\'nc_drift_user\',
             
-            ]'''
+]'''
 def brugerroller='''return [
 
-            '''
+'''
 for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
     brugerroller += '''\'''' + s + '''\',
 
-            '''
+'''
 }
 /*def brugerroller='return [\n\n'
 for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
     brugerroller += '\t\t\'' + s + '\',\n\n'
 }
 brugerroller += '\t\t]'*/
-x = brugerroller
 brugerroller += ''']'''
 println "built string:\n" + brugerroller
 println "actual string:\n" + brugerrollerS
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
-        string(defaultValue: '', description: brugerroller, name: 'Brugernavn', trim: false),
+        string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
         string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
         string(defaultValue: '', description: '', name: 'Efternavn', trim: false),
         string(defaultValue: '', description: '', name: 'Email', trim: false),
-        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: x]]],
+        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: brugerroller]]],
         choice(choices: choiceString("[user, system]"), description: ppolicydescription, name: 'PasswordPolicy'),
         booleanParam(defaultValue: true, description: generatePasswordDescription, name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
         booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')
@@ -99,7 +98,7 @@ pipeline {
                     currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
                 }
                 echo "Working Directory:"
-                sh 'pwd'
+                sh "pwd"
             }
         }
         stage ('print test values') {
@@ -108,8 +107,8 @@ pipeline {
                 echo "days from YML: 100"
                 echo "num from this script: " + numToKeep
                 echo "num from YML: 100"
-                sh "hexdump -C ${brugerroller}"
-                sh "hexdump -C ${brugerrollerS}"
+                //sh "echo ${brugerroller} | hexdump -C"
+                //sh "echo ${brugerrollerS} | hexdump -C"
             }
         }
     }

@@ -18,6 +18,8 @@ if("null" == "EN") {
     generatePasswordDescription = "Should a password be generated automatically? Alternatively, a password must be entered below."
     sendEmailDescription = "Should an email be sent with a password?"
 }
+//Brugerroller string
+
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
         string(defaultValue: "", description: "", name: "Brugernavn", trim: false),
         string(defaultValue: "", description: "", name: "Fornavn", trim: false),
@@ -57,12 +59,12 @@ pipeline {
         buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))
     }
 
-    parameters {
+   /* parameters {
         /*if(null != null){
             for (Map passwordparam : data.params.passwordparams){
                 password(name: "${passwordparam.name}",description: "passwordparam.description")
             }
-        }*/
+        }
         string(name: "Brugernavn", description: "")
         string(name: "Fornavn", description: "")
         string(name: "Efternavn", description: "")
@@ -71,7 +73,7 @@ pipeline {
         choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
         booleanParam(name: "Generate Password", defaultValue: true, description: generatePasswordDescription)
         password(name: "Password", description: "")
-        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)
+        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)*/
     }
     stages {
         stage ('Initialize') {
@@ -105,6 +107,7 @@ String choiceString(String input){
     }
     return output
 }
+//turns the list string into an actual list of objects
 String[] makeList(String input){
     return ((input).replaceAll(/[\[\]]+/, "")).split(', ')
 }

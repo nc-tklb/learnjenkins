@@ -68,7 +68,12 @@ if("null" == "EN") {
             ]''']]]]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([string(defaultValue: '', description: '', name: 'Brugernavn', trim: false), string(defaultValue: '', description: '', name: 'Fornavn', trim: false), string(defaultValue: '', description: '', name: 'Efternavn', trim: false), string(defaultValue: '', description: '', name: 'Email', trim: false), choice(choices: ['user', 'system'], description: 'Vælg hvilken password policy brugeren skal have ("user" anvendes til almindelige brugere og "system" anvendes til systembrugere, hvor password ikke har udløb) .', name: 'PasswordPolicy'), booleanParam(defaultValue: true, description: 'Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder.', name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'), booleanParam(defaultValue: true, description: 'Skal der udsendes en e-mail med password?', name: 'SendEmail')]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
 */
-properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([string(defaultValue: '', description: '', name: 'Brugernavn', trim: false), string(defaultValue: '', description: '', name: 'Fornavn', trim: false), string(defaultValue: '', description: '', name: 'Efternavn', trim: false), string(defaultValue: '', description: '', name: 'Email', trim: false), [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: '''return [
+properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
+string(defaultValue: '', description: '', name: 'Brugernavn', trim: false), 
+string(defaultValue: '', description: '', name: 'Fornavn', trim: false), 
+string(defaultValue: '', description: '', name: 'Efternavn', trim: false), 
+string(defaultValue: '', description: '', name: 'Email', trim: false), 
+[$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: '''return [
             
             \'g_dev_appserver_ssh\',
             
@@ -86,7 +91,10 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
             
             \'nc_drift_user\',
             
-            ]''']]], choice(choices: ['user', 'system'], description: 'Vælg hvilken password policy brugeren skal have ("user" anvendes til almindelige brugere og "system" anvendes til systembrugere, hvor password ikke har udløb) .', name: 'PasswordPolicy'), booleanParam(defaultValue: true, description: 'Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder.', name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'), booleanParam(defaultValue: true, description: 'Skal der udsendes en e-mail med password?', name: 'SendEmail')]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
+            ]''']]], 
+            choice(choices: ['user', 'system'], description: 'Vælg hvilken password policy brugeren skal have ("user" anvendes til almindelige brugere og "system" anvendes til systembrugere, hvor password ikke har udløb) .', name: 'PasswordPolicy'), 
+            booleanParam(defaultValue: true, description: 'Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder.', name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'), 
+            booleanParam(defaultValue: true, description: 'Skal der udsendes en e-mail med password?', name: 'SendEmail')]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
 
 
 pipeline {

@@ -19,25 +19,6 @@ if("null" == "EN") {
     sendEmailDescription = "Should an email be sent with a password?"
 }
 //Brugerroller string
-def brugerrollerS='''return [
-            
-\'g_dev_appserver_ssh\',
-            
-\'g_dev_appserver_sudo\',
-            
-\'g_dev_dbserver_ssh\',
-            
-\'g_dev_dbserver_sudo\',
-            
-\'g_dev_adserver_ssh\',
-            
-\'g_dev_adserver_sudo\',
-            
-\'nc_drift_admin\',
-            
-\'nc_drift_user\',
-            
-]'''
 def brugerroller='''return [
 
 '''
@@ -46,14 +27,9 @@ for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbser
 
 '''
 }
-/*def brugerroller='return [\n\n'
-for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
-    brugerroller += '\t\t\'' + s + '\',\n\n'
-}
-brugerroller += '\t\t]'*/
 brugerroller += ''']'''
-println "built string:\n" + brugerroller
-println "actual string:\n" + brugerrollerS
+
+//parameters when building the job
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
         string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
         string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
@@ -65,32 +41,14 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
         booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')
 ]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
 
-
-
-
+//job
 pipeline {
-
     agent any
+
     options{
         buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))
     }
 
-   /* parameters {
-        /*if(null != null){
-            for (Map passwordparam : data.params.passwordparams){
-                password(name: "${passwordparam.name}",description: "passwordparam.description")
-            }
-        }
-        string(name: "Brugernavn", description: "")
-        string(name: "Fornavn", description: "")
-        string(name: "Efternavn", description: "")
-        string(name: "Email", description: "")
-
-        choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
-        booleanParam(name: "Generate Password", defaultValue: true, description: generatePasswordDescription)
-        password(name: "Password", description: "")
-        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)
-    }*/
     stages {
         stage ('Initialize') {
             steps {
@@ -98,7 +56,7 @@ pipeline {
                     currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
                 }
                 echo "Working Directory:"
-                sh "pwd"
+                sh 'pwd'
             }
         }
         stage ('print test values') {
@@ -107,8 +65,6 @@ pipeline {
                 echo "days from YML: 100"
                 echo "num from this script: " + numToKeep
                 echo "num from YML: 100"
-                //sh "echo ${brugerroller} | hexdump -C"
-                //sh "echo ${brugerrollerS} | hexdump -C"
             }
         }
     }

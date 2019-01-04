@@ -108,8 +108,8 @@ pipeline {
                 echo "days from YML: 100"
                 echo "num from this script: " + numToKeep
                 echo "num from YML: 100"
-                sh 'hexdump -C \$brugerroller'
-                sh 'hexdump -C \$brugerrollerS'
+                sh "hexdump -C ${brugerroller}"
+                sh "hexdump -C ${brugerrollerS}"
             }
         }
     }

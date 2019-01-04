@@ -43,8 +43,8 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
             
             ]''']]],
         choice(choices: ['user', 'system'], description: ppolicydescription, name: 'PasswordPolicy'),
-        booleanParam(defaultValue: true, description: 'Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder.', name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
-        booleanParam(defaultValue: true, description: 'Skal der udsendes en e-mail med password?', name: 'SendEmail')
+        booleanParam(defaultValue: true, description: generatePasswordDescription, name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
+        booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')
 ]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
 
 

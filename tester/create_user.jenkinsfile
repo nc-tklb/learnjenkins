@@ -29,8 +29,19 @@ for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbser
 }
 brugerroller += ''']'''
 
+//authorization matrix setup
+println makeList("[g_dnoc_fy_superuser, testuser]")[0]
+authmatrix=makeList("[g_dnoc_fy_superuser, testuser]", 'hudson.model.Item.Build:')
+/*authmatrixString=''
+buildRoleList=makeList("[g_dnoc_fy_superuser, testuser]")
+for (String role : buildRoleList){
+    authmatrixString += 'hudson.model.Item.Build:' + role
+    if(role!=buildRoleList.last())
+        authmatrixString += ', '
+}*/
+
 //parameters when building the job
-properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
+properties([authorizationMatrix(authmatrix), [$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
         string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
         string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
         string(defaultValue: '', description: '', name: 'Efternavn', trim: false),
@@ -50,7 +61,7 @@ pipeline {
     }
 
     stages {
-        stage ('Initialize') {
+        stage ('Initialize description and auth matrix') {
             steps {
                 script{
                     currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
@@ -79,7 +90,22 @@ String choiceString(String input){
     }
     return output
 }
+String choiceString(String input, String preface){
+    def inputlist = makeList(input)
+    def output = ''
+    inputlist.each{
+        output += preface + it + '\n'
+    }
+    return output
+}
 //turns the list string into an actual list of objects
 String[] makeList(String input){
     return ((input).replaceAll(/[\[\]]+/, "")).split(', ')
+}
+java.util.List<String> makeList(String input, String preface){
+    java.util.List<String> output = ((input).replaceAll(/[\[\]]+/, "")).split(', ')
+    for (int i = 0; i<output.size(); i++)
+        output[i]=preface+output[i]
+
+    return output
 }

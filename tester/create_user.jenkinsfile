@@ -73,8 +73,8 @@ pipeline {
         choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
         booleanParam(name: "Generate Password", defaultValue: true, description: generatePasswordDescription)
         password(name: "Password", description: "")
-        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)*/
-    }
+        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)
+    }*/
     stages {
         stage ('Initialize') {
             steps {

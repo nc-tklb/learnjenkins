@@ -6,7 +6,127 @@ daysToKeep="-1"
 numToKeep="-1"
 if(true)
     daysToKeep = "100"
+if(true)//Pipeline template for user creation
+
+
+//sets days and numbers to keep. Defaults to -1
+daysToKeep="-1"
+numToKeep="-1"
 if(true)
+    daysToKeep = "100"
+if(true)
+    numToKeep = "100"
+
+//Description language
+ppolicydescription = "Vælg hvilken password policy brugeren skal have (\"user\" anvendes til almindelige brugere og \"system\" anvendes til systembrugere, hvor password ikke har udløb)."
+generatePasswordDescription = "Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder."
+sendEmailDescription = "Skal der udsendes en e-mail med password?"
+if("null" == "EN") {
+    ppolicydescription = "Choose which password policy the user should have (\"user\" is used for common users and \"system\" is used for system users whose password has not expired)."
+    generatePasswordDescription = "Should a password be generated automatically? Alternatively, a password must be entered below."
+    sendEmailDescription = "Should an email be sent with a password?"
+}
+//Brugerroller string
+def brugerrollerS='''return [
+            
+            \'g_dev_appserver_ssh\',
+            
+            \'g_dev_appserver_sudo\',
+            
+            \'g_dev_dbserver_ssh\',
+            
+            \'g_dev_dbserver_sudo\',
+            
+            \'g_dev_adserver_ssh\',
+            
+            \'g_dev_adserver_sudo\',
+            
+            \'nc_drift_admin\',
+            
+            \'nc_drift_user\',
+            
+            ]'''
+def brugerroller='return [\n\n'
+for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
+    brugerroller += '\'' + s + '\',\n\n'
+}
+brugerroller += ']'
+println "built string:
+" + brugerroller
+println "actual string:
+" + brugerrollerS
+properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([
+        string(defaultValue: '', description: '', name: 'Brugernavn', trim: false),
+        string(defaultValue: '', description: '', name: 'Fornavn', trim: false),
+        string(defaultValue: '', description: '', name: 'Efternavn', trim: false),
+        string(defaultValue: '', description: '', name: 'Email', trim: false),
+        [$class: 'ChoiceParameter', choiceType: 'PT_CHECKBOX', description: '', filterLength: 1, filterable: false, name: 'Brugerroller', randomName: 'choice-parameter-4134871779299', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: brugerroller]]],
+        choice(choices: choiceString("[user, system]"), description: ppolicydescription, name: 'PasswordPolicy'),
+        booleanParam(defaultValue: true, description: generatePasswordDescription, name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
+        booleanParam(defaultValue: true, description: sendEmailDescription, name: 'SendEmail')
+]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])
+
+
+
+
+pipeline {
+
+    agent any
+    options{
+        buildDiscarder(logRotator(daysToKeepStr: daysToKeep, numToKeepStr: numToKeep))
+    }
+
+   /* parameters {
+        /*if(null != null){
+            for (Map passwordparam : data.params.passwordparams){
+                password(name: "${passwordparam.name}",description: "passwordparam.description")
+            }
+        }
+        string(name: "Brugernavn", description: "")
+        string(name: "Fornavn", description: "")
+        string(name: "Efternavn", description: "")
+        string(name: "Email", description: "")
+
+        choice(name: "Password Policy", choices: choiceString("[user, system]"), description: ppolicydescription)
+        booleanParam(name: "Generate Password", defaultValue: true, description: generatePasswordDescription)
+        password(name: "Password", description: "")
+        booleanParam(name: "Send Email", defaultValue: true, description: sendEmailDescription)
+    }*/
+    stages {
+        stage ('Initialize') {
+            steps {
+                script{
+                    currentBuild.rawBuild.project.description = "Opretter en administrator, som kan have sudo rettigheder."
+                }
+                echo "Working Directory:"
+                sh 'pwd'
+            }
+        }
+        stage ('print test values') {
+            steps {
+                echo "days from this script: " + daysToKeep
+                echo "days from YML: 100"
+                echo "num from this script: " + numToKeep
+                echo "num from YML: 100"
+            }
+        }
+    }
+}
+
+//splits a list from the yml into a string that is readable by the jenkins pipeline choice parameter.
+String choiceString(String input){
+    def inputlist = makeList(input)
+    def output = ''
+    inputlist.each{
+        output += it + '\n'
+    }
+    return output
+}
+//turns the list string into an actual list of objects
+String[] makeList(String input){
+    return ((input).replaceAll(/[\[\]]+/, "")).split(', ')
+}
+
     numToKeep = "100"
 
 //Description language

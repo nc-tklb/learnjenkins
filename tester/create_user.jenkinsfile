@@ -42,7 +42,7 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
             \'nc_drift_user\',
             
             ]''']]],
-        choice(choices: ['user', 'system'], description: 'Vælg hvilken password policy brugeren skal have ("user" anvendes til almindelige brugere og "system" anvendes til systembrugere, hvor password ikke har udløb) .', name: 'PasswordPolicy'),
+        choice(choices: ['user', 'system'], description: ppolicydescription, name: 'PasswordPolicy'),
         booleanParam(defaultValue: true, description: 'Skal der auto-genereres et password? Alternativt skal der indtastes et password herunder.', name: 'GeneratePassword'), password(defaultValue: '', description: '', name: 'Password'),
         booleanParam(defaultValue: true, description: 'Skal der udsendes en e-mail med password?', name: 'SendEmail')
 ]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']])

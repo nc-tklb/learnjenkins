@@ -40,9 +40,9 @@ def brugerrollerS='''return [
             ]'''
 def brugerroller='return [\n\n'
 for(String s : makeList("[g_dev_appserver_ssh, g_dev_appserver_sudo, g_dev_dbserver_ssh, g_dev_dbserver_sudo, g_dev_adserver_ssh, g_dev_adserver_sudo, nc_drift_admin, nc_drift_user]")){
-    brugerroller += '\'' + s + '\',\n\n'
+    brugerroller += '\t\'' + s + '\',\n\n'
 }
-brugerroller += ']'
+brugerroller += '\t]'
 println "built string:\n" + brugerroller
 println "actual string:\n" + brugerrollerS
 properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([

@@ -63,19 +63,7 @@ buildscript {
 }
 
 apply plugin: 'operations-builder'
-
-apply from: 'operations.gradle'
-apply from: 'netscaler.gradle'
-apply from: 'jenkins.gradle'
 apply from: 'ldap.gradle'
-apply from: 'weblogic.gradle'
-apply from: 'deploy.gradle'
-apply from: 'flyway.gradle'
-apply from: 'spacewalk-client.gradle'
-apply from: 'dumps.gradle'
-apply from: 'connectiontest.gradle'
-apply from: 'filerecordcleanup.gradle'
-apply from: 'dbc.gradle'
 
 ssh {
   verbose  = true

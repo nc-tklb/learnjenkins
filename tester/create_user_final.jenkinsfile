@@ -45,8 +45,8 @@ pipeline {
     }
 
     environment{ //environment variables to be used throughout the job
-        gradle_path='C:/cygwin64/home/tklb/Team4/env-atpfy/trunk/'
-        gradleRun = "./gradlew -Pgroups=${Brugerroller} -Puser=${Brugernavn} -PfirstName=${Fornavn} -PlastName=${Efternavn} -Pemail=${Email} -Pgid=9999 -Pcontext=fy.*dev.atp-fyd-add01 -PsendEmail=${SendEmail} -PgeneratePassword=${GeneratePassword} -Pppolicy=${PasswordPolicy} -PdisableTunneling=false -Ppassword=${Password}"
+        gradle_path='gradle/'
+        gradleRun = "gradle -Pgroups=${Brugerroller} -Puser=${Brugernavn} -PfirstName=${Fornavn} -PlastName=${Efternavn} -Pemail=${Email} -Pgid=9999 -Pcontext=fy.*dev.atp-fyd-add01 -PsendEmail=${SendEmail} -PgeneratePassword=${GeneratePassword} -Pppolicy=${PasswordPolicy} -PdisableTunneling=false -Ppassword=${Password}"
     }
 
     stages { //Stages of the job
@@ -85,7 +85,7 @@ pipeline {
                     //Templating er nødvendigt da vi ikke ved om der er et maskedpassword eller et passwordparam
                     /**/
                     wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: 'heswawuS4abudrartraTraduTR5CeWasspefruy5SumUMasafapruswU4reN', var: 'MASTER_PASSWORD_FY_NONPROD']]]) {
-                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=heswawuS4abudrartraTraduTR5CeWasspefruy5SumUMasafapruswU4reN" + " createLdapUser"
+                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=" + " createLdapUser"
                     }
                     /**/
                 }
@@ -98,7 +98,7 @@ pipeline {
                     //Templating er nødvendigt da vi ikke ved om der er et maskedpassword eller et passwordparam
                     /**/
                     wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: 'heswawuS4abudrartraTraduTR5CeWasspefruy5SumUMasafapruswU4reN', var: 'MASTER_PASSWORD_FY_NONPROD']]]) {
-                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=heswawuS4abudrartraTraduTR5CeWasspefruy5SumUMasafapruswU4reN" + " setLdapGroupMembership"
+                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=" + " setLdapGroupMembership"
                     }
                     /**/
                 }

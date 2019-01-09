@@ -1,0 +1,1124 @@
+import com.netcompany.ob.EmailSender
+import com.netcompany.ob.PasswordGenerator
+import com.netcompany.ob.exception.LdapEntityAlreadyExistsException
+
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+
+/*
+*
+* This build script contains tasks for administering OpenLDAP server and client servers.
+*
+ */
+String membershipTemplate = """dn: cn=%1\$2s,ou=groups,%2\$2s
+changetype: modify
+%3\$2s: memberUid
+memberUid: %4\$2s"""
+
+String lockAccountTemplate = """dn: uid=%1\$2s,ou=People,%2\$2s
+changetype: modify
+add: pwdAccountLockedTime
+pwdAccountLockedTime: 000001010000Z"""
+
+String unlockAccountTemplate = """dn: uid=%1\$2s,ou=People,%2\$2s
+changetype: modify
+delete: pwdAccountLockedTime"""
+
+// arg1: user id, arg2: ldap base, arg3: policy name
+String setPasswordPolicyTemplate = """dn: uid=%1\$2s,ou=People,%2\$2s
+changetype: modify
+add: pwdPolicySubentry
+pwdPolicySubentry: cn=%3\$2s,ou=policies,%2\$2s
+"""
+
+// arg1: user id, arg2: ldap base
+String deletePasswordPolicyTemplate = """dn: uid=%1\$2s,ou=People,%2\$2s
+changetype: modify
+delete: pwdPolicySubentry
+"""
+
+String passwordPolicyExpirationTemplate = """dn: cn=user,ou=policies,%1\$2s
+changetype: modify
+replace: pwdMaxAge
+pwdMaxAge: %2\$2s
+-
+replace: pwdExpireWarning
+pwdExpireWarning: %3\$2s
+"""
+
+String passwordPolicyMinLengthTemplate = """dn: cn=user,ou=policies,%1\$2s
+changetype: modify
+replace: pwdMinLength
+pwdMinLength: %2\$2s
+"""
+
+String changeLoginShellTemplate = """dn: uid=%1\$2s,ou=People,%2\$2s
+changetype: modify
+replace: loginShell
+loginShell: %3\$2s
+"""
+
+String getIdTrackerUser() {
+  return "system_idtracker"
+}
+
+String syncUser = "system_sync"
+
+task('createCACertificate', group: 'Netcompany Drift tasks', description: 'Creates an x509 certificate that can serve as ' +
+    'a self-signed CA root certificate for the FY project. After creating the certificate it is zipped and downloaded to root of OB project.') << {
+  remoteSessionInContext { Map<String, Object> settings ->
+    String remoteTargetFileNoExt = '/tmp/cacert'
+    String remoteTargetFile = remoteTargetFileNoExt + '.zip'
+    File localTargetFile = new File(project.projectDir, "cacert.zip")
+    withRemoteTempDir { String tmpdir ->
+      execCommand(command: ['openssl', 'genrsa', '-out', tmpdir + '/CAcert-key.pem', '1024'])
+      execCommand(command: ['chmod', '0400', tmpdir + '/CAcert-key.pem'])
+      execCommand(command: ['openssl', 'req', '-new', '-key', tmpdir + '/CAcert-key.pem', '-out', tmpdir + '/CAcert.csr', '-subj', '/C=DK/ST=Copenhagen/L=Copenhagen/O=Netcompany/OU=Operations/CN=FY root CA'])
+      execCommand(command: ['openssl', 'x509', '-sha1', '-req', '-days', '10950', '-in', tmpdir + '/CAcert.csr', '-signkey', tmpdir + '/CAcert-key.pem', '-out', tmpdir + '/CAcert.pem'])
+      execCommand(command: ['zip', remoteTargetFileNoExt, '-j', '-r', tmpdir])
+    }
+    scp {
+      from { remoteFile remoteTargetFile }
+      into { localFile localTargetFile }
+    }
+    execCommand(command: ['rm', '-f', remoteTargetFile])
+    println("Zip file with certificate is available here: ${localTargetFile}")
+  }
+}
+
+task('createLdapServerCertificates', group: 'Netcompany Drift tasks', description: 'Creates x509 certificates for the specified servers. ' +
+    'The certificates will be signed by the CA certificate _metadata/ldap-certs/CAcert-key.pem. ' +
+    'After creating the certificates they are zipped and downloaded to root of OB project.' +
+    'Usage: createLdapServerCertificates -PserverCns=<comma separated list of FQDN of servers>') << {
+  // Call like this to get certificates for all LDAP servers:
+  // gradlew createLdapServerCertificates -PMASTER_PASSWORD_PROD=<pwd> -PMASTER_PASSWORD_DNOC=<pwd> -Pcontext=*dnoc.atp-fyp-shd01 -PserverCns="atp-fyd-add01.dev.fy.atp.nchosting.dk, atp-fyt-add01.test.fy.atp.nchosting.dk, atp-fye-add01.demo.fy.atp.nchosting.dk, atp-fyv-add01.prep.fy.atp.nchosting.dk, atp-fyv-add02.prep.fy.atp.nchosting.dk,atp-fyp-add01.prod.fy.atp.nchosting.dk, atp-fyp-add02.prod.fy.atp.nchosting.dk"
+  String cnsStr = parameter("serverCns") ?: "atp-fyd-add01.dev.fy.atp.nchosting.dk, atp-fyt-add01.test.fy.atp.nchosting.dk, atp-fye-add01.demo.fy.atp.nchosting.dk, atp-fyv-add01.prep.fy.atp.nchosting.dk, atp-fyv-add02.prep.fy.atp.nchosting.dk,atp-fyp-add01.prod.fy.atp.nchosting.dk, atp-fyp-add02.prod.fy.atp.nchosting.dk"
+  List<String> cns = cnsStr.split(',').collect { it.trim() }
+  remoteSessionInContext { Map<String, Object> settings ->
+    String remoteTargetFileNoExt = '/tmp/certificates'
+    String remoteTargetFile = remoteTargetFileNoExt + '.zip'
+    File localTargetFile = new File(project.projectDir, "certificates.zip")
+    withRemoteTempDir { String tmpdir ->
+      File caPublicKeyFile = settings.file("ldap-certs/CAcert.pem")
+      File caPrivateKeyFile = settings.file("ldap-certs/CAcert-key.pem")
+      String caPublicKeyFileDst = "${tmpdir}/CAcert.pem"
+      String caPrivateKeyFileDst = "${tmpdir}/CAcert-key.pem"
+      scp {
+        from { localFile caPublicKeyFile }
+        into { remoteFile caPublicKeyFileDst }
+      }
+      scp {
+        from { localFile caPrivateKeyFile }
+        into { remoteFile caPrivateKeyFileDst }
+      }
+      cns.each { String cn ->
+        String shortHostname = cn.split("\\.").first()
+        String publicKeyFile = "${tmpdir}/${shortHostname}.pem"
+        String privateKeyFile = "${tmpdir}/${shortHostname}-key.pem"
+        String requestFile = "${tmpdir}/${shortHostname}.csr"
+        execCommand(command: ['openssl', 'genrsa', '-out', privateKeyFile, '1024'])
+        execCommand(command: ['chmod', '0400', privateKeyFile])
+        execCommand(command: ['openssl', 'req', '-new', '-key', privateKeyFile, '-out', requestFile, '-subj', '/C=DK/ST=Copenhagen/L=Copenhagen/O=Netcompany/OU=Operations/CN=' + cn])
+        execCommand(command: ['openssl', 'x509', '-sha1', '-req', '-days', '10950', '-CAcreateserial', '-in', requestFile, '-CA', caPublicKeyFileDst, '-CAkey', caPrivateKeyFileDst, '-out', publicKeyFile])
+      }
+      execCommand(command: ['rm', '-f', caPrivateKeyFileDst])
+      execCommand(command: ['zip', remoteTargetFileNoExt, '-j', '-r', tmpdir])
+      scp {
+        from { remoteFile remoteTargetFile }
+        into { localFile localTargetFile }
+      }
+      execCommand(command: ['rm', '-f', remoteTargetFile])
+    }
+    println("Zip file with certificates is available here: ${localTargetFile}")
+  }
+}
+
+task('configureLdapServers', group: 'Netcompany Drift tasks', description: 'Creates the basis ldap structure for the LDAP server. This includes all groups defined in the ldap_groups property ') << {
+  remoteSessionInContext { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    //String adRole = requiredValue(settings, 'adRole')
+    String environment = requiredValue(settings, ['ldap_environment', 'environment'])
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String ldapDomain = requiredValue(settings, ['ldap_domain'])
+    String host = settings["shorthostname"] as String
+    String ldapConsumer = settings["ldap_consumer"] as String
+    String ldapProvider = settings["ldap_provider"] as String
+    String pwdExpiryWarning = settings["ldap_pwd_expiry_warning"] as String
+    String pwdMaxAge = settings["ldap_pwd_max_age"] as String
+    int ldapUserIdOffset = requiredValue(settings, "ldap_user_id_offset") as int
+    List<String> coreGroups = requiredValue(settings, ['ldap_core_groups']).split(',').collect { it.trim() }
+    List<String> otherGroups = requiredValue(settings, ['ldap_groups']).split(',').collect { it.trim() }
+    List<String> ldapGroups = new ArrayList<>()
+    ldapGroups.addAll(coreGroups)
+    ldapGroups.addAll(otherGroups)
+    int ldapGroupIdOffset = requiredValue(settings, ['ldap_group_id_offset']) as int
+
+    // Start by setting access rules and running db-config:
+    File localOlcAccessLdifFile = settings.file("templates/ldap/config-access.ldif")
+    File localOlcDbConfigFile = settings.file("templates/ldap/config-access.ldif")
+    withRemoteTempDir { String remoteDir ->
+      // Access rules:
+      String remoteOlcAccessLdifFile = "${remoteDir}/config-access.ldif"
+      scp {
+        from { localFile localOlcAccessLdifFile }
+        into { remoteFile remoteOlcAccessLdifFile }
+      }
+      String aclOutput = execCommand(command: ['ldapmodify','-c', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-f', remoteOlcAccessLdifFile], asUser: 'root', failOnError: false).output
+      String configSearch = execCommand(command: ['ldapsearch', '-LLL', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-b', "cn=config", 'olcAccess'], asUser: 'root').output
+      boolean syncConfigured = configSearch.contains("}to attrs=userPassword")
+      if(!syncConfigured) {
+        throw new RuntimeException("Unable to create access rules:\n${aclOutput}\n")
+      }
+
+      // DB config:
+      String remoteOlcDbConfigFile = "${remoteDir}/config-db.ldif"
+      scp {
+        from { localFile localOlcDbConfigFile }
+        into { remoteFile remoteOlcDbConfigFile }
+      }
+      String dbConfigOutput = execCommand(command: ['ldapmodify','-c', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-f', remoteOlcDbConfigFile], asUser: 'root', failOnError: false).output
+      if(!dbConfigOutput.contains("modifying entry")) {
+        throw new RuntimeException("Unable to configure db:\n${dbConfigOutput}\n")
+      }
+    }
+
+    // Configure logging with rsyslog:
+    boolean loggingConfigured = execCommand(command: ['grep', 'ldap.log', '/etc/rsyslog.conf'], asUser: 'root', failOnError: false).exitStatus==0
+    if(!loggingConfigured) {
+      // sed -i "\$aTEXTTOEND" test.txt
+      execCommand(command: ['sed', '-i.bak', '$alocal4.* /var/log/ldap.log', '/etc/rsyslog.conf'], asUser: 'root')
+      execCommand(command: ['touch', '/var/log/ldap.log'], asUser: 'root')
+      execCommand(command: ['chown', 'ldap:ldap', '/var/log/ldap.log'], asUser: 'root')
+      execCommand(command: ['systemctl', 'restart', 'rsyslog'], asUser: 'root')
+    }
+
+    // Register consumer if necessary:
+    if (ldapProvider != null && ldapConsumer != null && ldapConsumer.contains(host)) {
+      println "Registering ${host} as LDAP consumer. Provider is ${ldapProvider}."
+      File localConsumerConfigFile = settings.file("templates/ldap/config-ldap-consumer.ldif")
+      withRemoteTempDir { String remoteDir ->
+        //String pwFile = "${remoteDir}/pw"
+        //remoteFile(pwFile).rawText = ldapRootPw
+        String remoteConsumerConfigFile = "${remoteDir}/config-ldap-consumer.ldif"
+        scp {
+          from { localFile localConsumerConfigFile }
+          into { remoteFile remoteConsumerConfigFile }
+        }
+        Map<String, String> replacements = ['ldap_base': base, 'ldap_provider': ldapProvider, 'ldap_rootdn': ldapRootDn, 'ldap_rootpw': ldapRootPw]
+        withRemoteReplacement(replacements) {
+          inFile(remoteConsumerConfigFile)
+        }
+        def cmdExecution = execCommand(command: ['ldapmodify', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-c', '-f', remoteConsumerConfigFile], failOnError: false, asUser: 'root')
+        if (cmdExecution.exitStatus != 0) {
+          println "\n\n\nWARNING: registration of LDAP consumer reported errors. This could be OK, but verify output manually: ${cmdExecution.output}\n\n\n"
+        }
+      }
+      // Determine if consumer is now registered:
+      String configSearch = execCommand(command: ['ldapsearch', '-LLL', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-b', "cn=config", 'olcSyncrepl'], asUser: 'root').output
+      boolean syncConfigured = configSearch.contains("olcSyncrepl:")
+      if(!syncConfigured) {
+        throw new RuntimeException("Unable to register LDAP consumer")
+      }
+    } else {
+      // First determine if organisation already exist:
+      String orginazationSearchStr = "(|(&(objectclass=organizationalUnit)(|(ou=groups)(ou=people)(ou=${ldapDomain})))(&(objectclass=organization)(o=${ldapDomain})))"
+      String orgSearchResult = execCommand(command: ['ldapsearch', '-Y', 'EXTERNAL', '-H', 'ldapi:///', orginazationSearchStr], asUser: 'root', failOnError: false).output ?: ""
+      boolean organizationExists = orgSearchResult.contains("numEntries: 3")
+      String policiesSearchResult = searchAsLdapAdmin(settings.currentContext, "objectClass=pwdPolicy")
+      boolean policiesExists = policiesSearchResult.contains("numEntries: 2")
+
+
+      if (organizationExists && policiesExists) {
+        println("It seems the basic organisation already exists. No attempt will be made to create them.")
+      } else {
+        // Organization does not exist or is missing something. Create it:
+        File localOrganizationLdifFile = settings.file("templates/ldap/config-organization.ldif")
+        withRemoteTempDir { String remoteDir ->
+          String pwFile = "${remoteDir}/pw"
+          remoteFile(pwFile).rawText = ldapRootPw
+          String remoteOrganizationLdifFile = "${remoteDir}/config-organization.ldif"
+          scp {
+            from { localFile localOrganizationLdifFile }
+            into { remoteFile remoteOrganizationLdifFile }
+          }
+          Map<String, String> replacements = ['ldap_base': base, 'ldap_environment': environment, 'ldap_domain': ldapDomain, 'ldap_pwd_expiry_warning': pwdExpiryWarning, 'ldap_pwd_max_age': pwdMaxAge]
+          withRemoteReplacement(replacements) {
+            inFile(remoteOrganizationLdifFile)
+          }
+          String ldapAddOutput = execCommand(command: ['ldapadd', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteOrganizationLdifFile], failOnError: false).output
+          orgSearchResult = execCommand(command: ['ldapsearch', '-Y', 'EXTERNAL', '-H', 'ldapi:///', orginazationSearchStr], asUser: 'root').output ?: ""
+          boolean checkOk = orgSearchResult.contains("numEntries: 3")
+          if (!checkOk) {
+            throw new RuntimeException("Unexpected number of organizational units after ldapadd. Result of search\n: ${orgSearchResult}\nResult of LDAP ADD:\n${ldapAddOutput}\n")
+          }
+          policiesSearchResult = searchAsLdapAdmin(settings.currentContext, "objectClass=pwdPolicy")
+          checkOk = policiesSearchResult.contains("numEntries: 2")
+          if (!checkOk) {
+            throw new RuntimeException("Unexpected number of policies after ldapadd. Result of search\n: ${policiesSearchResult}\nResult of LDAP ADD:\n${ldapAddOutput}\n")
+          }
+        }
+      }
+
+      // Create user that is used for keeping track of gid and uid:
+      try {
+        int existingMaxUid = getLdapMaxId(context, ldapUserIdOffset - 2).max()
+        int existingMaxGid = getLdapMaxId(context, ldapGroupIdOffset - 2, "gidNumber").max()
+        createLdapUser(settings.currentContext as String, getIdTrackerUser(), String.valueOf(existingMaxUid + 1), String.valueOf(existingMaxGid + 1), "noreply@netcompany.com", "9999", "default", false, "")
+      } catch (LdapEntityAlreadyExistsException ignored) {}
+
+      // Now create user groups:
+      ldapGroups.each { String ldapGroup ->
+        try {
+          createLdapGroup(settings.currentContext as String, ldapGroup)
+        } catch (LdapEntityAlreadyExistsException ignored) {
+          println "Group ${ldapGroup} already exists and was not created."
+        }
+      }
+
+      // Create Jenkins system user:
+      try {
+        createLdapUser(settings.currentContext as String, "system_jenkins", "Jenkins", "System", "noreply@netcompany.com", "9999", "default")
+        List<String> groups = (settings['ldap_jenkins_groups'] as String).split(',').collect { it.trim() }
+        String password = settings['ldap_jenkinspw'] as String
+        setLdapGroupMembership(settings.currentContext as String, "system_jenkins", groups, membershipTemplate)
+        setLdapPassword(settings.currentContext as String, password, "system_jenkins")
+
+      } catch (LdapEntityAlreadyExistsException ignored) {}
+    }
+
+    // If the ldapProvider is set, then this is a cluster setup, which needs a password for the synchronization user:
+    if(ldapProvider!=null && ldapProvider.contains(host)) {
+      try {
+        createLdapUser(settings.currentContext as String, syncUser, "Sync", "System", "noreply@netcompany.com", "9999", "default", false, "")
+        String password = settings['ldap_syncpw'] as String
+        setLdapPassword(settings.currentContext as String, password, syncUser, null, null, "")
+      } catch (LdapEntityAlreadyExistsException ignored) {}
+    }
+
+  }
+}
+
+task('createLdapGroup',group: 'Netcompany Drift tasks', description: 'Create a group on LDAP server. Example: createLdapGroup -Pcontext=*dev.atp-fyd-add01 -Pgroupname=g_dev_testgroup') << {
+  String groupnames = requiredParameter("groupname")
+  String context = requiredParameter("context")
+  List<String> groups = groupnames.split(",").collect {it.trim()}.findAll {!it.empty}
+  groups.each {String group ->
+    createLdapGroup(context, group)
+  }
+
+}
+
+/**
+ * Create a new Group with the specified name.
+ * @param context Context that identifies the server to execute on.
+ * @param name name of group.
+ * @return ID og the created group.
+ * @throws LdapEntityAlreadyExistsException if the group already exists.
+ */
+Integer createLdapGroup(String context, String name) {
+  Integer groupId = null
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base')
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+
+    File localLdifFile = settings.file("templates/ldap/config-groups.ldif")
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      // Determine if group is already created:
+      String searchResult = execCommand(command: ['ldapsearch', '-Y', 'EXTERNAL', '-H', 'ldapi:///', "(&(objectclass=posixGroup)(cn=${name}))", 'cn', 'gidNumber'], asUser: 'root').output
+      boolean groupExists = searchResult.contains("numEntries:")
+      if (groupExists) {
+        throw new LdapEntityAlreadyExistsException("Group with name ${name} already exists and it will not be created.")
+      } else {
+        groupId = reserveLdapIds(context, 1, false).first()
+        String remoteLdifFile = "${remoteDir}/config-groups.ldif"
+        scp {
+          from { localFile localLdifFile }
+          into { remoteFile remoteLdifFile }
+        }
+        Map<String, String> replacements = ['ldap_base': base, 'ldap_group': name, 'ldap_gid': String.valueOf(groupId)]
+        withRemoteReplacement(replacements) {
+          inFile(remoteLdifFile)
+        }
+        execCommand(command: ['ldapadd', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile])
+        println "Group ${name} with id ${groupId} was successfully created"
+      }
+    }
+  }
+  return groupId
+}
+
+task('deleteLdapGroups',group: 'Netcompany Drift tasks', description: 'Deletes the specified ldap groups from the server. Example: deleteLdapGroups -Pgroups=g_dev_appserver_ssh,g_dev_appserver_sudo') << {
+  List<String> groups = (requiredParameter("groups") as String).split(',').collect { it.trim() }
+  remoteSessionInContext { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider','ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+
+    // Now delete groups, if they don't exist:
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      groups.each { String ldapGroup ->
+        String dn = "cn=${ldapGroup},ou=groups,${base}"
+        // Determine if group is already created:
+        String searchResult = execCommand(command: ['ldapsearch','-Y', 'EXTERNAL', '-H', 'ldapi:///', '-b', dn], asUser: 'root', failOnError: false).output
+        boolean groupExists = searchResult.contains("numEntries:")
+        if (groupExists) {
+          execCommand(command: ['ldapdelete', '-x', '-H', uri, '-y', pwFile, '-D', ldapRootDn, dn])
+          println "Group ${ldapGroup} was successfully deleted"
+        } else {
+          println("Group ${ldapGroup} was not found")
+        }
+      }
+    }
+  }
+}
+
+// gradlew createLdapUser -Pcontext=*dev.atp-fyd-add01 -Puser=admin_mfb -PfirstName=Mads -PlastName=Brenøe -Pemail=mfb@netcompany.com -Pgid=9999 -PMASTER_PASSWORD_NONPROD=<>
+task('createLdapUser',group: 'Netcompany Drift tasks', description: 'Create a user on LDAP server. Example: createLdapUser -Pcontext=*dev.atp-fyd-add01 -Puser=admin_mfb -PfirstName=Mads -PlastName=Brenoee -Pemail=mfb@netcompany.com -Pgid=9999') << {
+  String _username = requiredParameter("user")
+  String ppolicy = parameter("ppolicy") ?: "default"
+  if(ppolicy=="system") {
+    ppolicy = "default"
+  }
+  String username = _username.toLowerCase()
+  String firstName = removeInvalidChars(requiredParameter("firstName") as String)
+  String lastName = removeInvalidChars(requiredParameter("lastName") as String)
+  String email = requiredParameter("email")
+  String gid = requiredParameter("gid")
+  String home = parameter("home")
+  boolean allowLogin = !Boolean.parseBoolean(parameter("disableLogin"))
+  String context = requiredParameter("context")
+  createLdapUser(context, username, firstName, lastName, email, gid, ppolicy, allowLogin, "ou=people,", home)
+
+  // Set password if specified:
+  boolean generatePassword = "true".equalsIgnoreCase(parameter("generatePassword"))
+  boolean sendEmail = "true".equalsIgnoreCase(parameter("sendEmail"))
+  String password
+  if(generatePassword) {
+    password = PasswordGenerator.generatePassword(40)
+  } else {
+    password = parameter(["password", "Password"])
+  }
+  String pwdEmail = sendEmail ? email : null
+  setLdapPassword(context, password, username, pwdEmail, firstName)
+}
+
+/**
+ * Creates an LDAP user with the specified name, e-mail etc.
+ */
+void createLdapUser(String context, String username, String firstName, String lastName, String email, String gid, String ppolicy="default", boolean allowLogin=true, String ldapOu="ou=people,", String customHome = null) {
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base')
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String loginShell = allowLogin ? "/bin/bash" : "/bin/false"
+
+    String home
+    if(customHome==null) {
+      home = "/home/${username}"
+    } else {
+      home = customHome
+    }
+
+    int ldapUserIdOffset = Integer.valueOf(requiredValue(settings, 'ldap_user_id_offset'))
+
+    // Now create user, if it does not already exist:
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String dn = "uid=${username},${ldapOu}${base}"
+      // Determine if user is already created:
+      String searchResult = execCommand(command: ['ldapsearch', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '-b', dn], asUser: 'root', failOnError: false).output
+      boolean userExists = searchResult.contains("numEntries:")
+      if (userExists) {
+        throw new LdapEntityAlreadyExistsException("User ${username} already exists and cannot be created.")
+      } else {
+        int uid
+        try {
+          uid = reserveLdapIds(context).first()
+        } catch (Exception e) {
+          if(username.equals(getIdTrackerUser())) {
+            println "WARNING: Unable to reserve max ID for user ${username} using tracker user. Falling back to using largest id of existing user + 1."
+            List<Integer> uids = getLdapMaxId(context, ldapUserIdOffset, "uidNumber")
+            uid = uids.max() + 1
+          } else {
+            throw e
+          }
+        }
+
+        // Create user:
+        File localLdifFile = settings.file("templates/ldap/config-users.ldif")
+        String remoteLdifFile = "${remoteDir}/config-users.ldif"
+        scp {
+          from { localFile localLdifFile }
+          into { remoteFile remoteLdifFile }
+        }
+        Map<String, String> replacements = ['ldap_base': base, 'username': username, 'firstName': firstName, 'lastName': lastName, 'email': email, 'uid': "${uid}", 'gid': gid, 'loginShell': loginShell, 'ldapOu': ldapOu, 'pwdPolicy': ppolicy, 'home': home]
+        withRemoteReplacement(replacements) {
+          inFile(remoteLdifFile)
+        }
+        println remoteFile(remoteLdifFile).text
+
+        execCommand(command: ['ldapadd', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile])
+        println "User ${username} with uid ${uid} was successfully created"
+      }
+    }
+  }
+}
+
+
+
+/**
+ * Get maximum integer value of ID attribute used on existing posixAccount entities in LDAP.
+ * @param context Context to execute on.
+ * @param defaultValue Default value used if no existing posixAccount with uidNumber was found.
+ * @param idAttribute Name of ID attribute LDAP entity. Defaults to "uidNumber". Use "gidNumber" to get max group ID.
+ * @return Maximum "uidNumber" used on existing posixAccount entities in LDAP
+ */
+List<Integer> getLdapMaxId(String context, Integer defaultValue, String idAttribute = "uidNumber") {
+  List<Integer> ids = [defaultValue] as List
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uidSearchResult = execPipeline(pipeline: [['ldapsearch','-LLL', '-Y', 'EXTERNAL', '-H', 'ldapi:///', '(&(objectClass=posixAccount))', idAttribute], '|', ['grep', idAttribute]], asUser: 'root', failOnError: false).output ?: ""
+    String uidnumberPrefix = "${idAttribute}: "
+    uidSearchResult.split("\\n").collect { it.trim() }.each { String line ->
+      if (line.startsWith(uidnumberPrefix)) {
+        ids.add(Integer.valueOf(line.replace(uidnumberPrefix, "").trim()))
+      }
+    }
+  }
+  return ids
+}
+
+List<Integer> reserveLdapIds(String context, int noOfIds=1, boolean userId=true) {
+  String idAttribute = userId ? "givenName" : "sn"
+  List<Integer> ids = []
+  int currentMax = 0
+  String idUser = getIdTrackerUser()
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+
+    String uidSearchResult = execPipeline(pipeline: [['ldapsearch','-LLL', '-Y', 'EXTERNAL', '-H', 'ldapi:///', "(&(objectClass=posixAccount)(uid=${idUser}))", idAttribute], '|', ['grep', idAttribute]], asUser: 'root', failOnError: false).output ?: ""
+    String uidnumberPrefix = "${idAttribute}: "
+    uidSearchResult.split("\\n").collect { it.trim() }.each { String line ->
+      if (line.startsWith(uidnumberPrefix)) {
+        currentMax = Integer.valueOf(line.replace(uidnumberPrefix, "").trim())
+      }
+    }
+    if(currentMax==0) {
+      throw new RuntimeException("Unable to determine current max value of attribute ${idAttribute} on posixAccount ${idUser}")
+    }
+    // Update ID attribute:
+    String newMax = currentMax+noOfIds
+    String ldif =
+"""dn: uid=${idUser},${base}
+changetype: modify
+delete: ${idAttribute}
+${idAttribute}: ${currentMax}
+-
+add: ${idAttribute}
+${idAttribute}: ${newMax}
+"""
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String remoteLdifFile = "${remoteDir}/updateIds.ldif"
+      remoteFile(remoteLdifFile).text = ldif
+      execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-D', ldapRootDn, '-f', remoteLdifFile])
+    }
+    for(int i=1; i<=noOfIds; i++) {
+      ids.add(currentMax+i)
+    }
+  }
+  if(ids.empty) {
+    throw new RuntimeException("Unable to determine current max value of attribute ${idAttribute} on posixAccount ${idTrackerUser}")
+  }
+  return ids
+}
+
+task ('lookupLdapUser', group: 'Netcompany Drift tasks', description: 'Lookup user in LDAP. Usage: lookupLdapUser -Pcontext=<context> -Puser=<username>') << {
+  String username = requiredParameter("user")
+  String context = requiredParameter("context")
+  println("Search for user ${username} resulted in:\n"+lookupLdapUser(context, username))
+}
+
+/**
+ * Lookup LDAP user with the specified name and return user attributes as a map.
+ * @param context Context of server to connect to.
+ * @param username Name of user to search for.
+ * @return User parameters in a map. Empty map if user was not found.
+ */
+Map<String,String> lookupLdapUser(String context, String username) {
+  println "Looking up user '${username}' using context '${context}'"
+  List<String> parameterNameFilter = ["dn", "cn", "givenName", "sn", "mail", "uidNumber", "gidNumber", "homeDirectory", "loginShell"]
+  Map<String,String> result = [:]
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String searchResult = execCommand(command: ['ldapsearch', '-LLL', '-x', "cn=${username}"], failOnError: true).output ?:""
+    searchResult.split("\\n").collect { it.trim() }.each { String line ->
+      List<String> nameValuePair = line.split(":").collect {it.trim()}
+      while(nameValuePair.size()<2) {
+        nameValuePair.add("")
+      }
+      String name = nameValuePair.get(0)
+      if(parameterNameFilter.contains(name)) {
+        result.put(name, nameValuePair.get(1))
+      }
+    }
+  }
+  return result
+}
+
+task('setLdapGroupMembership', group: 'Netcompany Drift tasks', description: 'Define which groups the specified user should be member of. ' +
+    'Example: setLdapGroupMembership -Pcontext=*dev.atp-fyd-add01 -Puser=admin_mch -Pgroups=g_dev_users,g_dev_administrators,g_dev_appserver_ssh,g_dev_appserver_sudo') << {
+  List<String> users = (requiredParameter("user") as String).split(",").collect {it.trim()}.findAll {!it.empty}
+  boolean resetGroups = Boolean.parseBoolean(parameter("resetgroups"))
+  List<String> groups = (requiredParameter("groups") as String).split(',').collect { it.trim() }
+  String context = requiredParameter("context")
+  users.each {user ->
+    setLdapGroupMembership(context, user, groups, membershipTemplate, resetGroups)
+  }
+}
+
+void setLdapGroupMembership(String context, String user, List<String> groups, String membershipTemplate, boolean resetGroups=false) {
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    List<String> allGroups = requiredValue(settings, ['ldap_groups']).split(',').collect { it.trim() }
+
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String deleteLdifFileContent = ""
+      if(resetGroups) {
+        allGroups.each { String group ->
+          String deleteGroupLdif = String.format(membershipTemplate, group, base, 'delete', user)
+          deleteLdifFileContent = deleteLdifFileContent + deleteGroupLdif + '\n\n'
+        }
+      }
+      String remoteDeleteLdifFile = "${remoteDir}/delete.ldif"
+      remoteFile(remoteDeleteLdifFile, 'root').text = deleteLdifFileContent
+      execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteDeleteLdifFile], failOnError: false)
+
+      String addLdifFileContent = ""
+      groups.each { String group ->
+        String addGroupLdif = String.format(membershipTemplate, group, base, 'add', user)
+        addLdifFileContent = addLdifFileContent + addGroupLdif + '\n\n'
+      }
+      String remoteAddLdifFile = "${remoteDir}/add.ldif"
+      remoteFile(remoteAddLdifFile).text = addLdifFileContent
+      try {
+        execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteAddLdifFile])
+      } catch(RuntimeException e) {
+        println "Error while applying LDIF :\n\n${addLdifFileContent}"
+      }
+      println("Successfully changed user ${user}. User is now member of these groups: ${groups}")
+    }
+  }
+}
+
+task ('setLdapPassword', group: 'Netcompany Drift tasks', description: 'Set password for specified user. Usage: setLdapPassword -Pcontext=<context> -Puser=<username> -Ppassword=<new password>') << {
+  List<String> usernames = (requiredParameter("user") as String).split(",").collect {it.trim()}
+  boolean generatePassword = "true".equalsIgnoreCase(parameter("generatePassword"))
+  boolean sendEmail = "true".equalsIgnoreCase(parameter("sendEmail"))
+  usernames.each { String username ->
+    String password
+    if (generatePassword) {
+      password = PasswordGenerator.generatePassword(40)
+    } else {
+      password = requiredParameter(["password", "Password"])
+    }
+    String context = requiredParameter("context")
+    String email = null
+    String name = null
+    if (sendEmail) {
+      Map<String, String> userParameters = lookupLdapUser(context, username)
+      name = userParameters.get("givenName")
+      email = userParameters.get("mail")
+    }
+    setLdapPassword(context, password, username, email, name)
+  }
+}
+
+task('setLdapAccountLock', group: 'Netcompany Drift tasks', description: 'Lock or unlock an account. Usage: setLdapAccountLock -Pcontext=<context> -Puser=<username> -Paction=<lock|unlock>') << {
+  String context = requiredParameter("context")
+  List<String> usernames = (requiredParameter("user") as String).split(",").collect {it.trim()}
+  String action = (requiredParameter("action") as String).trim()
+  boolean unlock = action.equalsIgnoreCase("unlock")
+  boolean lock = action.equalsIgnoreCase("lock")
+  if(!unlock && !lock) {
+    throw new InvalidUserDataException("Unknown action '${action}'. Must be either 'lock' or 'unlock'")
+  }
+  usernames.each { String username ->
+    setLdapAccountLock(context, unlock, username, unlockAccountTemplate, lockAccountTemplate)
+    println "Account ${username} is now ${action}ed."
+  }
+}
+
+task('changeLdapPassword', description: "Change openldap password using the 'ldappasswd' command. Notice that this command executes locally and tries to reach the LDAP service URL ldaps:/.... Usage: " +
+    "changeLdapPassword -Poldpwd=<old password> -Pnewpwd=<new password> -PnewpwdCtrl=<new password> -Pusername=<username> -PsettingsContext=<context contect for an LDAP server in the environment>\n" +
+    "changeLdapPassword -Poldpwd=<old password> -PgeneratePassword=true -Pusername=<username> -PsettingsContext=<context contect for an LDAP server in the environment>"
+)  << {
+  String username = requiredParameter("user")
+  String oldpwd = requiredParameter(["oldpwd","GammeltPassword"])
+  String context = requiredParameter("context")
+  boolean generatePassword = "true".equalsIgnoreCase(parameter("generatePassword"))
+  String password
+  boolean sendEmail
+  if(generatePassword) {
+    password = PasswordGenerator.generatePassword(40)
+    sendEmail = true
+  } else {
+    sendEmail = false
+    password = requiredParameter(["newpwd","NytPassword"])
+    String passwordCtrl = requiredParameter(["newpwdCtrl","GentagNytPassword"])
+    if(password!=passwordCtrl) {
+      throw new RuntimeException("Dine indtastninger af det nye password matcher ikke.")
+    }
+  }
+
+  String email = null
+  String name = null
+  String ldapDomain = null
+  if (sendEmail) {
+    Map<String, String> userParameters = lookupLdapUser(context, username)
+    name = userParameters.get("givenName")
+    email = userParameters.get("mail")
+  }
+
+
+  // Context that identifies the environment for which to change password:
+  String tmpDir = "/tmp/${(int) (Math.random() * 999999)}tmp/" // Temporary directory for files
+  String oldpwdFile = "${tmpDir}/oldpwd"
+  String newpwdFile = "${tmpDir}/newpwd"
+
+  forAllSettings(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri']) as String
+    String base = requiredValue(settings, 'ldap_base') as String
+    ldapDomain = requiredValue(settings, ['ldap_domain']) as String
+
+    // Create temporary directory for password files:
+    File tmpDirFile = file(tmpDir)
+    tmpDirFile.mkdirs()
+    File errFile = file("${tmpDir}/errfile")
+    errFile.createNewFile()
+    ant.exec(executable: 'chmod', error: errFile.absolutePath) {
+      arg(value: '700')
+      arg(value: tmpDir)
+    }
+    String error = errFile.text
+    if(error!=null && !error.trim().empty) {
+      throw new RuntimeException(error)
+    }
+
+
+    try {
+      // Write password files:
+      file(oldpwdFile).text = oldpwd
+      file(newpwdFile).text = password
+      // Change mode on files again in order to avoid warning in error output:
+      ant.exec(executable: 'chmod', error: errFile.absolutePath) {
+        arg(value: '-R')
+        arg(value: '700')
+        arg(value: tmpDir)
+      }
+
+      // Change password:
+      ant.exec(executable: 'ldappasswd', error: errFile.absolutePath) {
+        arg(value: '-x')
+        arg(value: '-y')
+        arg(value: oldpwdFile)
+        arg(value: '-t')
+        arg(value: oldpwdFile)
+        arg(value: '-T')
+        arg(value: newpwdFile)
+        arg(value: '-H')
+        arg(value: uri)
+        arg(value: '-D')
+        arg(value: "uid=${username},ou=People,${base}")
+      }
+      error = errFile.text
+    } finally {
+      ant.delete(dir: tmpDir)
+    }
+    if(error!=null && !error.trim().empty) {
+      throw new RuntimeException(error)
+    }
+  }
+
+  if(email!=null && ldapDomain!=null) {
+    String subject = "Your account for the domain ${ldapDomain} has been activated"
+    name = name?:username
+    String message = """Hi ${name}
+
+Your account for the domain ${ldapDomain} has been activated with the following credentials:
+Username: ${username}
+Password: ${password}
+
+Best regards
+Netcompany Operations
+"""
+    EmailSender emailSender = new EmailSender()
+    emailSender.sendBasicEmail(email, subject, message)
+    println "Successfully sent e-mail to ${email}"
+  }
+
+}
+
+/**
+ * Lock or unlock the specified account.
+ * @param context Context that identifies the server to execute on.
+ * @param unlock True for unlock false for lock.
+ * @param username Name of user-account to lock/unlock.
+ * @param unlockAccountTemplate LDIF template for unlocking account.
+ * @param lockAccountTemplate LDIF template for locking account.
+ */
+void setLdapAccountLock(String context, boolean unlock, String username, String unlockAccountTemplate, String lockAccountTemplate) {
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String template = unlock ? unlockAccountTemplate : lockAccountTemplate
+    String ldif = String.format(template, username, base)
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String remoteLdifFile = "${remoteDir}/setaccountlock.ldif"
+      remoteFile(remoteLdifFile).text = ldif
+      def cmdExecution = execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile], failOnError: false)
+      if(cmdExecution.exitStatus != 0) {
+        String cmdOutput = cmdExecution.output as String
+        if(cmdOutput.contains("pwdAccountLockedTime: no such attribute")) {
+          print "\n ACCOUNT ${username} IS NOT LOCKED.\n\n"
+        }
+        else if(cmdOutput.contains("pwdAccountLockedTime: value #0 already exists")) {
+          print "\n ACCOUNT ${username} WAS ALREADY LOCKED.\n\n"
+        } else {
+          throw new RuntimeException("failed lock/unlock with ldif: \n${ldif}\n\n${cmdOutput}")
+        }
+      }
+    }
+  }
+}
+
+task('updatePasswordPolicyExpirations', description: "Refresh the values that determines password expiration. New values are read from config tree.") << {
+  remoteSessionInContext { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String maxAge = requiredValue(settings, ['ldap_pwd_max_age'])
+    String warningTime = requiredValue(settings, ['ldap_pwd_expiry_warning'])
+    String ldif = String.format(passwordPolicyExpirationTemplate, base, maxAge, warningTime)
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String remoteLdifFile = "${remoteDir}/policyexpupdate.ldif"
+      remoteFile(remoteLdifFile).text = ldif
+      execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile], failOnError: true)
+    }
+  }
+}
+
+task('updatePasswordPolicyMinLength', description: "Refresh the values that determines password min length.") << {
+  remoteSessionInContext { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String minLength = "12"
+    String ldif = String.format(passwordPolicyMinLengthTemplate, base, minLength)
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      String remoteLdifFile = "${remoteDir}/policyexpupdate.ldif"
+      remoteFile(remoteLdifFile).text = ldif
+      execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile], failOnError: true)
+    }
+  }
+}
+
+task('changeLoginShell', description: "Change the login shell for the specified user. Example of usage:\n" +
+    "gradlew changeLoginShell -Pusers=mch -Pshell='/bin/bash' -Pcontext=fy.*.atp-fyd-add01 -PMASTER_PASS...\n" +
+    "gradlew changeLoginShell -Pusers=mch -Pshell='/bin/false' -Pcontext=fy.*.atp-fyd-add01 -PMASTER_PASS...\n" +
+    "gradlew changeLoginShell -Pusers=mch -Pshell='/bin/true' -Pcontext=fy.*.atp-fyd-add01 -PMASTER_PASS...\n"
+) << {
+  remoteSessionInContext { Map<String, Object> settings ->
+    List<String> usernames = requiredParameter(["users"]).split(",").collect {it.trim()}
+    String shell = requiredParameter("shell")
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base') as String
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    usernames.each { String username ->
+      String ldif = String.format(changeLoginShellTemplate, username, base, shell)
+      withRemoteTempDir { String remoteDir ->
+        String pwFile = "${remoteDir}/pw"
+        remoteFile(pwFile).rawText = ldapRootPw
+        String remoteLdifFile = "${remoteDir}/shellupdate.ldif"
+        remoteFile(remoteLdifFile).text = ldif
+        execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteLdifFile], failOnError: true)
+      }
+    }
+  }
+}
+
+/**
+ * Set LDAP password of the specified user.
+ * @param context Context that identifies the server to execute on.
+ * @param password New password.
+ * @param username Username of user.
+ * @param email E-mail. If specified an e-mail will be sent to the user with the password.
+ * @param name Name of user. Used only when an e-mail address has been specified. The name is used in the e-mail.
+ * @param ldapOu Optional organizational unit. Defaults to "ou=people,".
+ */
+void setLdapPassword(String context, String password, String username, String email=null, String name=null, String ldapOu = "ou=people,") {
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base')
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    String ldapDomain = requiredValue(settings, ['ldap_domain'])
+
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      String newPwFile = "${remoteDir}/newpw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      remoteFile(newPwFile).rawText = password
+      String userDn = "uid=${username},${ldapOu}${base}"
+      execCommand(command: ['ldappasswd', '-x', '-H', uri, '-y', pwFile, '-D', ldapRootDn, '-S', userDn, '-T', newPwFile])
+    }
+    if(email!=null) {
+      String subject = "Your account for the domain ${ldapDomain} has been activated"
+      name = name?:username
+      String message = """Hi ${name}
+
+Your account for the domain ${ldapDomain} has been activated with the following credentials:
+Username: ${username}
+Password: ${password}
+
+Best regards
+Netcompany Operations
+"""
+      EmailSender emailSender = new EmailSender()
+      emailSender.sendBasicEmail(email, subject, message)
+      println "Successfully sent e-mail to ${email}"
+    }
+  }
+}
+
+task ('deleteLdapUser', group: 'Netcompany Drift tasks', description: 'Delete the specified user. Usage: deleteLdapUser -Pcontext=<context> -Puser=<username>') << {
+  String username = requiredParameter("user")
+  remoteSessionInContext { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider','ldap_uri'])
+    String base = requiredValue(settings, 'ldap_base')
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    List<String> coreGroups = requiredValue(settings, ['ldap_core_groups']).split(',').collect { it.trim() }
+    List<String> allGroups = requiredValue(settings, ['ldap_groups']).split(',').collect { it.trim() }
+    allGroups.addAll(coreGroups)
+
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+
+      // Delete membership of groups:
+      String deleteLdifFileContent = ""
+      allGroups.each { String group ->
+        String deleteGroupLdif = String.format(membershipTemplate, group, base, 'delete', username)
+        deleteLdifFileContent = deleteLdifFileContent + deleteGroupLdif + '\n\n'
+      }
+      String remoteDeleteLdifFile = "${remoteDir}/delete.ldif"
+      remoteFile(remoteDeleteLdifFile, 'root').text = deleteLdifFileContent
+      execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteDeleteLdifFile], failOnError: false)
+
+      // Delete user:
+      String userDn = "uid=${username},ou=people,${base}"
+      execCommand(command: ['ldapdelete', '-x', '-H', uri, '-y', pwFile, '-D', ldapRootDn, userDn])
+      println "Successfully delete user ${username}"
+    }
+  }
+}
+
+task('setLdapPasswordPolicy', description: "Set password policy for user") << {
+  List<String> usernames = requiredParameter(["usernames","users"]).split(",").collect {it.trim()}
+  String policy = requiredParameter("policy")
+  remoteSessionInContext { Map<String, Object> settings ->
+      usernames.each { username ->
+      String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+      String base = requiredValue(settings, 'ldap_base')
+      String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+      String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+
+      withRemoteTempDir { String remoteDir ->
+        String pwFile = "${remoteDir}/pw"
+        remoteFile(pwFile).rawText = ldapRootPw
+        // Delete existing policy:
+        // arg1: user id, arg2: ldap base
+        println "Deleting existing policy for user ${username}"
+        String deleteLdif = String.format(deletePasswordPolicyTemplate, username, base)
+        String remoteDeleteLdifFile = "${remoteDir}/delete.ldif"
+        remoteFile(remoteDeleteLdifFile, 'root').text = deleteLdif
+        execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteDeleteLdifFile], failOnError: false)
+
+        // Add new policy:
+        // arg1: user id, arg2: ldap base, arg3: policy name
+        println "Adding new policy for user ${username}"
+        String addLdif = String.format(setPasswordPolicyTemplate, username, base, policy)
+        String remoteAddLdifFile = "${remoteDir}/add.ldif"
+        remoteFile(remoteAddLdifFile, 'root').text = addLdif
+        execCommand(command: ['ldapmodify', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, '-f', remoteAddLdifFile])
+      }
+    }
+  }
+}
+
+protected static String removeInvalidChars(String str) {
+  return str.replaceAll("æ", "ae").replaceAll("ø", "oe").replaceAll("å", "aa")
+}
+
+protected static String requiredValue(Map<String, ?> settings, Object names) {
+  List<String> l = names instanceof List ? names as List<String> : [names as String]
+  String primary = l[0]
+  for (String name : l) {
+    String value = settings[name] as String
+    if (value) {
+      return value
+    }
+  }
+  throw new InvalidUserDataException("Missing required property ${primary}")
+}
+
+
+task('removeLdapInstallation', group: 'Netcompany Drift tasks', description: 'Deletes an LDAP installation completely including all users') << {
+  boolean force = parameter("force")=="true"
+  boolean deleteSlapdConf = parameter("deleteSlapdConf")=="true"
+  if(!force) {
+    throw new RuntimeException("This task must be invoked with force=true to make sure that you really want to uninstall OpenLDAP and delete the entire installation including all users.")
+  }
+  remoteSessionInContext { Map<String, Object> settings ->
+    execCommand(command: ['find', '/var/lib/ldap/', '-type', 'f', '-delete'], failOnError: false, asUser: 'root')
+    if(deleteSlapdConf) {
+      execCommand(command: ['rm', '-rf', '/etc/openldap/slapd.d'], asUser: 'root')
+    }
+    execCommand(command: ['yum', 'remove', '-y', 'openldap-servers'], asUser: 'root')
+
+  }
+}
+
+task('correctOwnership', description: 'This task is a simple helper task for resetting permissions on home directories after playing around with LDAP. The task should be deleted when LDAP scripts are done and all LDAP installations are done.') << {
+  String environment = requiredParameter("env")
+  remoteSessionInContext { Map<String, Object> settings ->
+    ['admin_mch', 'admin_mfb', 'system_jenkins'].each {String user ->
+      execCommand(command: ['chown','-R', "${user}:g_${environment}_administrators", "/home/${user}"], asUser: 'root', failOnError: false)
+    }
+  }
+}
+
+task('printUserInfo', description: 'Prints information about an LDAP user account (group membershipt and whether the account is locked out). Usage: -Pusernames=<comma separated list of usernames> ') << {
+  List<String> usernames = requiredParameter("usernames").split(",").collect {it.trim()}
+  final DateFormat ldapZuluDateFormat = new SimpleDateFormat("yyyyMMddHHmmss'Z'")
+  ldapZuluDateFormat.setTimeZone(TimeZone.getTimeZone("Zulu"))
+  remoteSessionInContext { Map<String, Object> settings ->
+    usernames.each { String username ->
+      println "\n"
+      // Find list of groups that the user is member of:
+      String userinfo = execCommand(command: ['id', username], asUser: 'root', failOnError: false).output ?:""
+      String[] userinfoArr = userinfo.split("groups=")
+      if(userinfoArr.length<2) {
+        println "\nAccount '${username}' does not exist."
+      } else {
+        userinfo = userinfoArr[1]
+        List<String> groups = userinfo.findAll(/[0-9]+\(([a-zA-Z_]+)\)/, { fullMatch, groupMatch -> groupMatch })
+        groups.sort()
+        // Find out if the account is locked:
+        String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+        String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+        String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+        Date lockedZuluTime = null
+        String passwordPolicy = null
+        Date pwdChangedTime = null
+        withRemoteTempDir { String remoteDir ->
+          String pwFile = "${remoteDir}/pw"
+          remoteFile(pwFile).rawText = ldapRootPw
+          String lockedTime = execCommand(command: ['ldapsearch', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, "uid=${username}", 'pwdAccountLockedTime', '-LLL']).output
+          String lockedZuluTimeStr = lockedTime.find(/.*pwdAccountLockedTime: ([0-9]+Z)/, { fullMatch, groupMatch -> groupMatch })
+          if (lockedZuluTimeStr != null) {
+            if (lockedZuluTimeStr == "000001010000Z") {
+              final DateFormat ldapAdmLockedZuluDateFormat = new SimpleDateFormat("yyyyMMddHHmm'Z'")
+              ldapAdmLockedZuluDateFormat.setTimeZone(TimeZone.getTimeZone("Zulu"))
+              lockedZuluTime = ldapAdmLockedZuluDateFormat.parse(lockedZuluTimeStr)
+            } else {
+              lockedZuluTime = ldapZuluDateFormat.parse(lockedZuluTimeStr)
+              println lockedZuluTime
+            }
+          }
+          passwordPolicy = execCommand(command: ['ldapsearch', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, "uid=${username}", 'pwdPolicySubentry', '-LLL']).output
+          passwordPolicy = passwordPolicy.find(/.*pwdPolicySubentry: (.*)/, { fullMatch, groupMatch -> groupMatch }) ?: "default"
+          String pwdChangedTimeStr = execCommand(command: ['ldapsearch', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, "uid=${username}", 'pwdChangedTime', '-LLL']).output
+          String pwdChangedZuluTimeStr = pwdChangedTimeStr.find(/.*pwdChangedTime: ([0-9]+Z)/, { fullMatch, groupMatch -> groupMatch })
+          if (pwdChangedZuluTimeStr != null) {
+            pwdChangedTime = ldapZuluDateFormat.parse(pwdChangedZuluTimeStr)
+          }
+
+        }
+        println "**************************************************************************************************************"
+        println "****************************************** ${username} ****************************************************************".substring(0,110)
+        println "**************************************************************************************************************"
+        // Print information to console:
+        if (lockedZuluTime == null) {
+          println "Account status: 'active'"
+        } else {
+          println "Account was locked: ${lockedZuluTime}"
+        }
+        println "Password policy: '${passwordPolicy}'"
+        println "Password was changed/created: '${pwdChangedTime}'"
+        println "Account is member of:\n  ${groups.join('\n  ')}"
+
+      }
+    }
+  }
+  println "\n"
+}
+
+
+task ('searchAsLdapAdmin') << {
+  String context = requiredParameter("context")
+  String searchExpression = requiredParameter("search")
+  boolean failOnError = Boolean.valueOf(parameter("failOnError"))
+  List<String> searchResults = searchAsLdapAdmin(context, searchExpression, failOnError)
+  searchResults.each {
+    println "\nResult for search: '${searchExpression}':\n"
+    println it+"\n"
+  }
+}
+/**
+ * Search LDAP as LDAP admin user.
+ */
+List<String> searchAsLdapAdmin(String context, String searchExpression, boolean failOnError=false) {
+  List<String> result = []
+  remoteSessionInContext(context) { Map<String, Object> settings ->
+    String uri = requiredValue(settings, ['ldap_provider', 'ldap_uri'])
+    String ldapRootPw = requiredValue(settings, ['ldap_rootpw'])
+    String ldapRootDn = requiredValue(settings, ['ldap_rootdn']).trim()
+    withRemoteTempDir { String remoteDir ->
+      String pwFile = "${remoteDir}/pw"
+      remoteFile(pwFile).rawText = ldapRootPw
+      result << execCommand(command: ['ldapsearch', '-x', '-H', uri, '-y', pwFile, '-cD', ldapRootDn, searchExpression], failOnError: failOnError).output
+    }
+  }
+  return result
+}

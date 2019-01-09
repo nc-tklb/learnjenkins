@@ -1,0 +1,82 @@
+
+/*
+ *  __  __       _          _____             __ _
+ * |  \/  |     (_)        / ____|           / _(_)
+ * | \  / | __ _ _ _ __   | |     ___  _ __ | |_ _  __ _
+ * | |\/| |/ _` | | '_ \  | |    / _ \| '_ \|  _| |/ _` |
+ * | |  | | (_| | | | | | | |___| (_) | | | | | | | (_| |
+ * |_|  |_|\__,_|_|_| |_|  \_____\___/|_| |_|_| |_|\__, |
+ *                                                 __/ |
+ *                                                |___/
+ *
+ * This is main build script that contains that hooks in all plugins
+ * and other build scripts as well as contains common configuration.
+ *
+ */
+
+apply plugin: 'groovy'
+apply plugin: 'idea'
+apply plugin: 'org.flywaydb.flyway'
+
+configurations {
+  driver
+}
+
+allprojects {
+  repositories {
+    maven { url "https://nexus.nchosting.dk/content/repositories/central" }
+    maven { url "https://nexus.nchosting.dk/content/repositories/ob-snapshots" }
+    maven { url "https://nexus.nchosting.dk/content/repositories/thirdparty/" }
+  }
+
+  task wrapper(type: Wrapper) {
+    gradleVersion = theGradleVersion
+    distributionUrl = "https://public.nchosting.dk/gradle/gradle-${theGradleVersion}-all.zip"
+  }
+
+}
+
+
+dependencies {
+  compile(group: 'dk.netcompany.operations.gradle', name: 'gradle-ob-plugin', version: obVersion)
+
+  // [Optional - only for .yaml or .yml files in settings]
+  //compile(group: 'org.yaml', name: 'snakeyaml', version: 1.6)
+  driver(group: 'com.oracle', name: 'ojdbc6', version: '11.2.0.4')
+  compile gradleApi()
+  compile localGroovy()
+}
+
+buildscript {
+  repositories {
+    maven { url "https://nexus.nchosting.dk/content/repositories/central" }
+    maven { url "https://nexus.nchosting.dk/content/repositories/ob-snapshots" }
+    jcenter()
+  }
+  dependencies {
+
+    classpath localGroovy()
+    classpath(group: 'dk.netcompany.operations.gradle', name: 'gradle-ob-plugin', version: obVersion)
+    classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.0.0"
+    classpath(group: 'com.opencsv', name: 'opencsv', version: '4.0')
+  }
+}
+
+apply plugin: 'operations-builder'
+
+apply from: 'operations.gradle'
+apply from: 'netscaler.gradle'
+apply from: 'jenkins.gradle'
+apply from: 'ldap.gradle'
+apply from: 'weblogic.gradle'
+apply from: 'deploy.gradle'
+apply from: 'flyway.gradle'
+apply from: 'spacewalk-client.gradle'
+apply from: 'dumps.gradle'
+apply from: 'connectiontest.gradle'
+apply from: 'filerecordcleanup.gradle'
+apply from: 'dbc.gradle'
+
+ssh {
+  verbose  = true
+}

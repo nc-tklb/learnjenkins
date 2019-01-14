@@ -19,7 +19,6 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
                     daysToKeepStr: 100 != null ? "100" : "-1",
                     numToKeepStr: 100 != null ? "100" : "-1")
             ),
-            authorizationMatrix(buildRoles()),
             parameters([
             //Templating
             /**/

@@ -1,4 +1,4 @@
-task('Hello')<<{
+task('hello')<<{
   println "HERRO WARUDO!"
 }
 task('createLdapUser')<<{

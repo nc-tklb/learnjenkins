@@ -51,13 +51,13 @@ pipeline {
     stages { //Stages of the job
         stage ("Kontrollerer parametre"){
             steps{
+                echo "working directory"
+                sh 'pwd'
                 script {
                     checkIfFirstBuild()
                     checkPassword()
                     checkParameters(["${Brugernavn}","${Fornavn}","${Efternavn}","${Email}","${Brugerroller}"])
                 }
-                echo "working directory"
-                sh 'pwd'
             }
         }
         stage ("Opretter bruger") {

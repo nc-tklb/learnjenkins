@@ -53,6 +53,7 @@ pipeline {
             steps{
                 echo "working directory"
                 sh 'pwd'
+                echo "gradle path = " + gradle_path
                 script {
                     checkIfFirstBuild()
                     checkPassword()

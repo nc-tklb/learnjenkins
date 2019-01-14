@@ -1,6 +1,6 @@
 task('Hello')<<{
-  echo "HERRO WARUDO!"
+  println "HERRO WARUDO!"
 }
 task('createLdapUser')<<{
-  echo "skink"
+  println "skink"
 }

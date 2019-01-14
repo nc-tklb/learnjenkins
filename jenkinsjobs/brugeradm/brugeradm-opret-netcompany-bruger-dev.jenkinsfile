@@ -56,6 +56,8 @@ pipeline {
                     checkPassword()
                     checkParameters(["${Brugernavn}","${Fornavn}","${Efternavn}","${Email}","${Brugerroller}"])
                 }
+                echo "working directory"
+                sh 'pwd'
             }
         }
         stage ("Opretter bruger") {

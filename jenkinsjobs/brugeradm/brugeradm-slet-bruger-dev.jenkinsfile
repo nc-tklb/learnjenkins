@@ -1,0 +1,100 @@
+///-----------------------------SETUP-----------------------------///
+//sets the description of the job
+currentBuild.rawBuild.project.description = "Sletter en bruger helt fra LDAP serveren."
+
+//sets up parameters and properties for the job
+properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false],
+            "null"!="true" ? disableConcurrentBuilds() : buildDiscarder(logRotator(artifactDaysToKeepStr: '-1', artifactNumToKeepStr: '-1', daysToKeepStr: '-1', numToKeepStr: '-1')),
+            buildDiscarder(logRotator(
+                    daysToKeepStr: 100 != null ? "100" : "-1",
+                    numToKeepStr: 100 != null ? "100" : "-1")
+            ),
+            authorizationMatrix(buildRoles()),
+
+            parameters([
+            //Templating er nødvendigt da vi ikke ved om der er et passwordparam
+            /**/
+                    string(defaultValue: '', description: '', name: 'Brugernavn', trim: false)
+
+            ]), [$class: 'ThrottleJobProperty', categories: [], limitOneJobWithMatchingParams: false, maxConcurrentPerNode: 0, maxConcurrentTotal: 0, paramsToUseForLimit: '', throttleEnabled: false, throttleOption: 'project']
+])
+///-----------------------------PIPELINE-----------------------------///
+pipeline {
+    agent any //agent running the job
+
+    tools{ //bind tools to be used in this job to the correct names
+        gradle 'gradle-latest'
+    }
+
+    environment{ //environment variables to be used throughout the job
+        gradle_path='/software/netcompany/product/ob/current'
+        gradleRun = "gradlew -Puser=${Brugernavn} -Pcontext=fy.*dev.atp-fyd-add01 -PdisableTunneling=false"
+    }
+
+    stages { //Stages of the job
+        stage ("Kontrollerer parametre"){
+            steps{
+                script {
+                    checkIfFirstBuild()
+                    checkParameters(["${Brugernavn}"])
+                }
+            }
+        }
+        stage ("Sletter bruger") {
+            steps{
+                echo "DELETING LDAP USER"
+                dir(gradle_path) {
+                    //Templating er nødvendigt da vi ikke ved om der er et maskedpassword eller et passwordparam
+                    /**/
+                    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: 'C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=', var: 'MASTER_PASSWORD_FY_NONPROD']]]) {
+                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=" + " deleteLdapUser"
+                    }
+                    /**/
+                }
+            }
+        }
+    }
+}
+
+///-----------------------------METHODS-----------------------------///
+//Checks if this is the first build, so that the parameters can be set up before an actual build is performed
+void checkIfFirstBuild(){
+    if (currentBuild.number < 2) {
+        try {
+            sh './build.sh'
+        }
+        finally {
+            echo 'This is the first build of the job, parameters are now set up. Build again to use parameters'
+        }
+    }
+}
+//Method used for checking the parameters in the first step of the pipeline, use to make sure they are set up correctly
+void checkParameters(List<String> params){
+    echo "CHECKING PARAMETERS"
+    for (String s : params){
+        if( s.length() < 1) {
+            try {
+                sh './build.sh'
+            }
+            finally {
+                echo 'Not all required parameters were filled out. Exiting...'
+            }
+        }
+    }
+}
+//Turns the list string in to a Java list and prefaces each entry with the given string
+//Used for certain custom plugin parameters such as authorization matrix
+java.util.List<String> parseList(String input, String preface) {
+    java.util.List<String> output = ((input).replaceAll(/[\[\]]+/, "")).split(', ')
+    for (int i = 0; i < output.size(); i++)
+        output[i] = preface + output[i]
+
+    return output
+}
+
+//Makes a string for the authorizationmatrix property for all the build roles
+List<String> buildRoles(){
+    List<String> output = []
+    /**/
+    return output
+}

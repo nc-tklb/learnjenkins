@@ -44,7 +44,7 @@ pipeline {
     }
 
     environment{ //environment variables to be used throughout the job
-        gradle_path='/software/netcompany/product/ob/current'
+        gradle_path='/cygwin64/home/tklb/Team4/env-atpfy/trunk'
         gradleRun = "gradlew -Pgroups=${Brugerroller} -Puser=${Brugernavn} -PfirstName=${Fornavn} -PlastName=${Efternavn} -Pemail=${Email} -Pgid=9999 -Pcontext=fy.*dev.atp-fyd-add01 -PsendEmail=${SendEmail} -PgeneratePassword=${GeneratePassword} -Pppolicy=${PasswordPolicy} -PdisableTunneling=false"
     }
 

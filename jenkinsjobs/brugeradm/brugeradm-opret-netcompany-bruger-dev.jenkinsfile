@@ -45,8 +45,7 @@ pipeline {
 
     environment{ //environment variables to be used throughout the job
         gradle_path='/cygdrive/c/Users/tklb/Team4/env-atpfy/trunk'
-        gradleRun = "gradlew -Pgroups=${Brugerroller} -Puser=${Brugernavn} -PfirstName=${Fornavn} -PlastName=${Efternavn} -Pemail=${Email} -Pgid=9999 -Pcontext=fy.*dev.atp-fyd-add01 -PsendEmail=${SendEmail} -PgeneratePassword=${GeneratePassword} -Pppolicy=${PasswordPolicy} -PdisableTunneling=false"
-    }
+     }
 
     stages { //Stages of the job
         stage ("Kontrollerer parametre"){
@@ -54,122 +53,7 @@ pipeline {
                 echo "working directory"
                 sh 'pwd'
                 echo "gradle path = " + gradle_path
-                script {
-                    checkIfFirstBuild()
-                    checkPassword()
-                    checkParameters(["${Brugernavn}","${Fornavn}","${Efternavn}","${Email}","${Brugerroller}"])
-                }
-            }
-        }
-        stage ("Opretter bruger") {
-            steps{
-                echo "Creating LDAP USER"
-                dir(gradle_path) {
-                    //Templating er nødvendigt da vi ikke ved om der er et maskedpassword eller et passwordparam
-                    /**/
-                    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: 'C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=', var: 'MASTER_PASSWORD_FY_NONPROD']]]) {
-                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=" + " createLdapUser"
-                    }
-                    /**/
-                }
-            }
-        }
-        stage("Sætter gruppemedlemsskaber") {
-            steps{
-                echo "SETTING LDAP MEMBERSHIP"
-                dir(gradle_path){
-                    //Templating
-                    /**/
-                    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: 'C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=', var: 'MASTER_PASSWORD_FY_NONPROD']]]) {
-                        sh gradleRun + " -PMASTER_PASSWORD_FY_NONPROD=C57Yo1i900P/T241ne5LqWIH5/fa6qUjp5VT+gMKe5bKNdl3d6A1S3jkfx7CQNtRv4SfhV1xW5+k5ErBNJqexRzZawBFVq7sVL6Gv1uTBxM=" + " setLdapGroupMembership"
-                    }
-                    /**/
-                }
+                echo " skulle bare teste"
             }
         }
     }
-}
-
-///-----------------------------METHODS-----------------------------///
-//Checks if this is the first build, so that the parameters can be set up before an actual build is performed
-void checkIfFirstBuild(){
-    if (currentBuild.number < 2) {
-        try {
-            sh './build.sh'
-        }
-        finally {
-            echo 'This is the first build of the job, parameters are now set up. Build again to use parameters'
-        }
-    }
-}
-//Method used for checking the parameters in the first step of the pipeline, use to make sure they are set up correctly
-void checkParameters(List<String> params){
-    echo "CHECKING PARAMETERS"
-    for (String s : params){
-        if( s.length() < 1) {
-            try {
-                sh './build.sh'
-            }
-            finally {
-                echo 'Not all required parameters were filled out. Exiting...'
-            }
-        }
-    }
-}
-//Checks if password and generate password parameters are input correctly
-void checkPassword(){
-    echo "CHECKING PASSWORD"
-    if("${GeneratePassword}" == "false"){
-        if("${Password}".length()>0){
-            gradleRun+= " -Ppassword=${Password}"
-            echo 'proceeding with user specified password'
-        }
-        else{
-            try {
-                sh './build.sh'
-            }
-            finally {
-                echo 'No password specified and generate password was set to false, exiting...'
-            }
-        }
-    }
-    else
-        echo 'Proceeding with generated password'
-}
-//splits a list from the yaml into a string that is readable by the jenkins pipeline choice parameter.
-String choiceString(String input){
-    def inputlist = parseList(input)
-    def output = ''
-    inputlist.each{
-        output += it + '\n'
-    }
-    return output
-}
-
-//turns the list string into a groovy list of objects
-String[] parseList(String input){
-    return ((input).replaceAll(/[\[\]]+/, "")).split(', ')
-}
-
-//Turns the yaml string into a formatted string readable by the multi choice parameter
-String multiChoiceString(String input){
-    output='''return [
-
-'''
-    for(String s : parseList(input)){
-        output += '''\'''' + s + '''\',
-
-'''
-    }
-    output += ''']'''
-    return output
-}
-
-//Makes a string for the authorizationmatrix property for all the build roles
-List<String> buildRoles(){
-    List<String> output = []
-    /**/
-    output.add('hudson.model.Item.Build:' + "g_dnoc_fy_superuser")
-    /**/
-    return output
-}

@@ -41,7 +41,7 @@ pipeline {
     }
 
     environment{ //environment variables to be used throughout the job
-        gradle_path='/cygdrive/c/Users/tklb/Team4/env-atpfy/trunk'
+        gradle_path='C:/cygwin64/home/tklb/Team4/env-atpfy/trunk/'
      }
 
     stages { //Stages of the job

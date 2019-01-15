@@ -20,6 +20,7 @@ properties([[$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: fal
                     numToKeepStr: 100 != null ? "100" : "-1")
             ),
             disableConcurrentBuilds(),
+            disable(),
             parameters([
             //Templating
             /**/
